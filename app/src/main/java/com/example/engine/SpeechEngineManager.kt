@@ -51,11 +51,20 @@ class SpeechEngineManager(
     private val onFinalText: (String) -> Unit
 ) {
 
+    private enum class RecognizerSlot { SLOT_A, SLOT_B }
+
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main)
     private val beepSuppressor = AudioBeepSuppressor(context)
 
-    private var speechRecognizer: SpeechRecognizer? = null
+    @Volatile
+    private var activeSlot = RecognizerSlot.SLOT_A
+    private var recognizerA: SpeechRecognizer? = null
+    private var recognizerB: SpeechRecognizer? = null
+
+    private val listenerA: RecognitionListener = createRecognitionListener(RecognizerSlot.SLOT_A)
+    private val listenerB: RecognitionListener = createRecognitionListener(RecognizerSlot.SLOT_B)
+
     @Volatile
     private var isSessionActive = false
     @Volatile
@@ -89,9 +98,9 @@ class SpeechEngineManager(
         cancelStartTimeout()
         startTimeoutRunnable = Runnable {
             if (_dictationState.value is DictationState.Starting && isSessionActive && gen == sessionGeneration) {
-                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recognizer stuck in Starting; restarting (gen=$gen)")
-                destroyRecognizer()
-                scheduleRestart(delayMs = 100L, generation = gen)
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recognizer stuck in Starting; handoff retry (gen=$gen)")
+                destroyRecognizerSlot(activeSlot)
+                triggerPingPongHandoff(fromSlot = activeSlot, gen = gen)
             }
         }
         handler.postDelayed(startTimeoutRunnable!!, 3500L)
@@ -144,136 +153,136 @@ class SpeechEngineManager(
     private val _utteranceCount = MutableStateFlow(0)
     val utteranceCount: StateFlow<Int> = _utteranceCount.asStateFlow()
 
-    private val recognitionListener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {
-            val gen = sessionGeneration
-            if (!isSessionActive) return
+    private fun createRecognitionListener(slot: RecognizerSlot): RecognitionListener {
+        return object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (!isSessionActive || activeSlot != slot) return
 
-            cancelStartTimeout()
-            _dictationState.value = DictationState.Listening
-            consecutiveErrors = 0 // Reset error count on successful start
-            resetIdleAutoStop()
-            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Ready for speech (gen=$gen)")
-        }
-
-        override fun onBeginningOfSpeech() {
-            if (!isSessionActive) return
-            cancelStartTimeout()
-            markSpeech()
-            _dictationState.value = DictationState.Listening
-            resetIdleAutoStop()
-            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Beginning of speech")
-        }
-
-        override fun onRmsChanged(rmsdB: Float) {
-            if (!isSessionActive) return
-            cancelStartTimeout()
-            if (rmsdB > RMS_SPEECH_THRESHOLD_DB) {
-                markSpeech()
-            }
-            // Normalise dB (-2 to 10) to 0.0..1.0
-            val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
-            val current = _smoothedRms.value
-            _smoothedRms.value = current * 0.65f + normalized * 0.35f
-        }
-
-        override fun onBufferReceived(buffer: ByteArray?) {}
-
-        override fun onEndOfSpeech() {
-            if (!isSessionActive) return
-            // CRITICAL: DO NOT restart or cancel here!
-            // The engine is processing audio and will fire onResults or onError within 50-200ms.
-            // Calling stopListening() or cancel() here will discard final words.
-            val s = settingsRepository.cachedSettings
-            if (silenceElapsed() >= s.silenceCompleteMs) {
-                _dictationState.value = DictationState.Processing
-            } else {
+                cancelStartTimeout()
                 _dictationState.value = DictationState.Listening
-            }
-            _smoothedRms.value = 0f
-            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "End of speech")
-        }
-
-        override fun onError(error: Int) {
-            val gen = sessionGeneration
-            cancelStartTimeout()
-            _smoothedRms.value = 0f
-            if (!isSessionActive) {
-                beepSuppressor.restoreSessionVolumes(delayed = true)
-                return
+                consecutiveErrors = 0
+                resetIdleAutoStop()
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Ready for speech ($slot, gen=$sessionGeneration)")
             }
 
-            handleRecognizerError(error, gen)
-        }
-
-        override fun onResults(results: Bundle?) {
-            val gen = sessionGeneration
-            cancelStartTimeout()
-            _smoothedRms.value = 0f
-            if (!isSessionActive) {
-                beepSuppressor.restoreSessionVolumes(delayed = true)
-                return
-            }
-
-            consecutiveErrors = 0
-            resetIdleAutoStop()
-
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            val resultText = matches?.firstOrNull() ?: ""
-
-            DiagnosticsLog.log(
-                DiagnosticsLog.Category.RECOGNIZER,
-                "Final result: [${resultText.take(40)}...] (gen=$gen)"
-            )
-
-            commitTextWithContinuationCheck(resultText)
-
-            if (isSessionActive && gen == sessionGeneration) {
-                onEngineSegmentEnded(gen)
-            } else {
-                _dictationState.value = DictationState.Idle
-            }
-        }
-
-        override fun onPartialResults(partialResults: Bundle?) {
-            if (!isSessionActive) return
-            cancelStartTimeout()
-            resetIdleAutoStop() // User is speaking, prevent idle auto-stop
-
-            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            val partial = matches?.firstOrNull() ?: ""
-            if (partial.isNotBlank()) {
+            override fun onBeginningOfSpeech() {
+                if (!isSessionActive || activeSlot != slot) return
+                cancelStartTimeout()
                 markSpeech()
-                currentPartialText = partial
-                onPartialText(partial)
+                _dictationState.value = DictationState.Listening
+                resetIdleAutoStop()
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Beginning of speech ($slot)")
             }
-        }
 
-        override fun onSegmentResults(segmentResults: Bundle) {
-            if (!isSessionActive) return
-            val matches = segmentResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            val segmentText = matches?.firstOrNull() ?: ""
-            if (segmentText.isNotBlank()) {
-                markSpeech()
-                _utteranceCount.value++
-                onFinalText(segmentText)
+            override fun onRmsChanged(rmsdB: Float) {
+                if (!isSessionActive || activeSlot != slot) return
+                cancelStartTimeout()
+                if (rmsdB > RMS_SPEECH_THRESHOLD_DB) {
+                    markSpeech()
+                }
+                val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                val current = _smoothedRms.value
+                _smoothedRms.value = current * 0.65f + normalized * 0.35f
             }
-        }
 
-        override fun onEndOfSegmentedSession() {
-            val gen = sessionGeneration
-            if (!isSessionActive) return
-            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "End of segmented session (gen=$gen)")
-            onEngineSegmentEnded(gen)
-        }
+            override fun onBufferReceived(buffer: ByteArray?) {}
 
-        override fun onEvent(eventType: Int, params: Bundle?) {}
+            override fun onEndOfSpeech() {
+                if (!isSessionActive || activeSlot != slot) return
+                _smoothedRms.value = 0f
+                val s = settingsRepository.cachedSettings
+                if (silenceElapsed() >= s.silenceCompleteMs) {
+                    _dictationState.value = DictationState.Processing
+                } else {
+                    _dictationState.value = DictationState.Listening
+                }
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "End of speech ($slot)")
+            }
+
+            override fun onError(error: Int) {
+                if (!isSessionActive || activeSlot != slot) return
+                val gen = sessionGeneration
+                cancelStartTimeout()
+                _smoothedRms.value = 0f
+                if (!isSessionActive) {
+                    beepSuppressor.restoreSessionVolumes(delayed = true)
+                    return
+                }
+
+                handleRecognizerError(error, slot, gen)
+            }
+
+            override fun onResults(results: Bundle?) {
+                if (!isSessionActive || activeSlot != slot) return
+                val gen = sessionGeneration
+                cancelStartTimeout()
+                _smoothedRms.value = 0f
+                if (!isSessionActive) {
+                    beepSuppressor.restoreSessionVolumes(delayed = true)
+                    return
+                }
+
+                consecutiveErrors = 0
+                resetIdleAutoStop()
+
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val resultText = matches?.firstOrNull() ?: ""
+
+                DiagnosticsLog.log(
+                    DiagnosticsLog.Category.RECOGNIZER,
+                    "Final result ($slot): [${resultText.take(40)}...] (gen=$gen)"
+                )
+
+                commitTextWithContinuationCheck(resultText)
+
+                if (isSessionActive && gen == sessionGeneration) {
+                    triggerPingPongHandoff(fromSlot = slot, gen = gen)
+                } else {
+                    _dictationState.value = DictationState.Idle
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                if (!isSessionActive || activeSlot != slot) return
+                cancelStartTimeout()
+                resetIdleAutoStop()
+
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val partial = matches?.firstOrNull() ?: ""
+                if (partial.isNotBlank()) {
+                    markSpeech()
+                    currentPartialText = partial
+                    onPartialText(partial)
+                }
+            }
+
+            override fun onSegmentResults(segmentResults: Bundle) {
+                if (!isSessionActive || activeSlot != slot) return
+                val matches = segmentResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val segmentText = matches?.firstOrNull() ?: ""
+                if (segmentText.isNotBlank()) {
+                    markSpeech()
+                    _utteranceCount.value++
+                    onFinalText(segmentText)
+                }
+            }
+
+            override fun onEndOfSegmentedSession() {
+                if (!isSessionActive || activeSlot != slot) return
+                val gen = sessionGeneration
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "End of segmented session ($slot, gen=$gen)")
+                triggerPingPongHandoff(fromSlot = slot, gen = gen)
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
     }
 
     fun startSession() {
         if (isSessionActive) return
         val currentGen = ++sessionGeneration
         isSessionActive = true
+        activeSlot = RecognizerSlot.SLOT_A
         consecutiveErrors = 0
         _sessionDurationSec.value = 0L
         _utteranceCount.value = 0
@@ -286,12 +295,12 @@ class SpeechEngineManager(
 
         startSessionTimer()
         resetIdleAutoStop()
-        startListeningInternal(currentGen)
-        DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session started (gen=$currentGen)")
+        startListeningSlot(RecognizerSlot.SLOT_A, currentGen)
+        DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session started on SLOT_A (gen=$currentGen)")
     }
 
     fun stopSession() {
-        val stopGen = ++sessionGeneration // Invalidate any pending posted callbacks
+        val stopGen = ++sessionGeneration
         isSessionActive = false
         restartJob?.cancel()
         idleAutoStopJob?.cancel()
@@ -299,15 +308,13 @@ class SpeechEngineManager(
         cancelStartTimeout()
 
         runOnMainThread {
-            try {
-                speechRecognizer?.stopListening()
-                speechRecognizer?.cancel()
-            } catch (ignored: Exception) {}
+            try { recognizerA?.stopListening() } catch (ignored: Exception) {}
+            try { recognizerA?.cancel() } catch (ignored: Exception) {}
+            try { recognizerB?.stopListening() } catch (ignored: Exception) {}
+            try { recognizerB?.cancel() } catch (ignored: Exception) {}
 
-            // Cleanly destroy recognizer on normal stop to prevent stale listener/state
-            destroyRecognizerInternal()
+            destroyRecognizersInternal()
 
-            // Swallow cancellation tone with 400ms delayed restore
             beepSuppressor.restoreSessionVolumes(delayed = true)
             _dictationState.value = DictationState.Idle
             _smoothedRms.value = 0f
@@ -325,9 +332,8 @@ class SpeechEngineManager(
         cancelStartTimeout()
 
         runOnMainThread {
-            try {
-                speechRecognizer?.cancel()
-            } catch (ignored: Exception) {}
+            try { recognizerA?.cancel() } catch (ignored: Exception) {}
+            try { recognizerB?.cancel() } catch (ignored: Exception) {}
             beepSuppressor.restoreSessionVolumes(delayed = true)
             _dictationState.value = DictationState.Paused
             _smoothedRms.value = 0f
@@ -345,8 +351,8 @@ class SpeechEngineManager(
 
         startSessionTimer()
         resetIdleAutoStop()
-        startListeningInternal(currentGen)
-        DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session resumed (gen=$currentGen)")
+        startListeningSlot(activeSlot, currentGen)
+        DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session resumed on $activeSlot (gen=$currentGen)")
     }
 
     fun togglePause() {
@@ -357,15 +363,15 @@ class SpeechEngineManager(
         }
     }
 
-    private fun startListeningInternal(generation: Long, isSilentReopen: Boolean = false) {
+    private fun startListeningSlot(slot: RecognizerSlot, generation: Long, isSilentReopen: Boolean = false) {
         if (!isSessionActive || generation != sessionGeneration) return
 
         runOnMainThread {
-            // Guard again inside main thread queue to prevent start/stop race
             if (!isSessionActive || generation != sessionGeneration) return@runOnMainThread
 
             try {
-                val recognizer = getOrCreateRecognizer()
+                activeSlot = slot
+                val recognizer = getOrCreateRecognizer(slot)
                 val intent = buildRecognizerIntent()
 
                 if (!isSilentReopen) {
@@ -379,7 +385,6 @@ class SpeechEngineManager(
                     beepSuppressor.muteBeforeStart()
                 }
 
-                // Defensively cancel previous active/stale state before starting to avoid ERROR_CLIENT
                 try {
                     recognizer.cancel()
                 } catch (ignored: Exception) {}
@@ -389,58 +394,98 @@ class SpeechEngineManager(
             } catch (e: Exception) {
                 DiagnosticsLog.log(
                     DiagnosticsLog.Category.ERROR,
-                    "Failed to startListening: ${e.message}"
+                    "Failed to startListeningSlot ($slot): ${e.message}"
                 )
                 if (isSessionActive && generation == sessionGeneration) {
-                    handleRecognizerError(SpeechRecognizer.ERROR_CLIENT, generation)
+                    handleRecognizerError(SpeechRecognizer.ERROR_CLIENT, slot, generation)
                 }
             }
         }
     }
 
-    private fun getOrCreateRecognizer(): SpeechRecognizer {
-        speechRecognizer?.let { return it }
+    private fun triggerPingPongHandoff(fromSlot: RecognizerSlot, gen: Long) {
+        if (!isSessionActive || gen != sessionGeneration) return
+
+        val s = settingsRepository.cachedSettings
+        val nextSlot = if (fromSlot == RecognizerSlot.SLOT_A) RecognizerSlot.SLOT_B else RecognizerSlot.SLOT_A
+
+        // 1. Immediately cancel outgoing slot to release AudioRecord on Xiaomi MIUI 14
+        try {
+            if (fromSlot == RecognizerSlot.SLOT_A) recognizerA?.cancel() else recognizerB?.cancel()
+        } catch (ignored: Exception) {}
+
+        if (s.dictationMode == DictationMode.CONTINUOUS) {
+            // Xiaomi MIUI 14 calibrated micro-handoff: 40ms to guarantee AudioPolicyManager audio release
+            _dictationState.value = DictationState.Restarting
+            restartJob?.cancel()
+            restartJob = scope.launch {
+                delay(XIAOMI_MIUI_HANDOFF_DELAY_MS)
+                if (isSessionActive && gen == sessionGeneration) {
+                    startListeningSlot(nextSlot, gen, isSilentReopen = true)
+                }
+            }
+        } else {
+            // Pause-and-restart mode with visual countdown
+            scheduleRestart(delayMs = getRestartDelay(), generation = gen, targetSlot = nextSlot)
+        }
+    }
+
+    private fun getOrCreateRecognizer(slot: RecognizerSlot): SpeechRecognizer {
+        val existing = if (slot == RecognizerSlot.SLOT_A) recognizerA else recognizerB
+        if (existing != null) return existing
 
         val settings = settingsRepository.cachedSettings
         val recognizer = if (settings.useOnDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Creating on-device speech recognizer")
+            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Creating on-device speech recognizer for $slot")
             SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
         } else {
             val component = findGoogleOrSelectedComponent(settings)
             if (component != null) {
-                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Creating speech recognizer with component: $component")
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Creating speech recognizer for $slot with component: $component")
                 SpeechRecognizer.createSpeechRecognizer(context, component)
             } else {
                 SpeechRecognizer.createSpeechRecognizer(context)
             }
         }
 
-        recognizer.setRecognitionListener(recognitionListener)
-        speechRecognizer = recognizer
+        val listener = if (slot == RecognizerSlot.SLOT_A) listenerA else listenerB
+        recognizer.setRecognitionListener(listener)
+
+        if (slot == RecognizerSlot.SLOT_A) {
+            recognizerA = recognizer
+        } else {
+            recognizerB = recognizer
+        }
         return recognizer
     }
 
-    private fun destroyRecognizerInternal() {
+    private fun destroyRecognizerSlot(slot: RecognizerSlot) {
         try {
-            speechRecognizer?.destroy()
+            if (slot == RecognizerSlot.SLOT_A) {
+                recognizerA?.destroy()
+                recognizerA = null
+            } else {
+                recognizerB?.destroy()
+                recognizerB = null
+            }
         } catch (ignored: Exception) {}
-        speechRecognizer = null
     }
 
-    private fun destroyRecognizer() {
-        runOnMainThread {
-            destroyRecognizerInternal()
-        }
+    private fun destroyRecognizersInternal() {
+        try { recognizerA?.destroy() } catch (ignored: Exception) {}
+        try { recognizerB?.destroy() } catch (ignored: Exception) {}
+        recognizerA = null
+        recognizerB = null
     }
 
-    private fun handleRecognizerError(errorCode: Int, generation: Long) {
-        if (!isSessionActive || generation != sessionGeneration) return
+    private fun handleRecognizerError(errorCode: Int, slot: RecognizerSlot, generation: Long) {
+        if (!isSessionActive || generation != sessionGeneration || activeSlot != slot) return
         cancelStartTimeout()
 
         val errorMessage = getErrorDescription(errorCode)
         DiagnosticsLog.log(
             DiagnosticsLog.Category.ERROR,
-            "Recognizer error ($errorCode): $errorMessage (gen=$generation)"
+            "Recognizer error ($errorCode) on $slot: $errorMessage (gen=$generation)"
         )
 
         val settings = settingsRepository.cachedSettings
@@ -448,8 +493,21 @@ class SpeechEngineManager(
 
         if (isPauseError && isSessionActive) {
             commitPendingPartial()
-            _dictationState.value = DictationState.Restarting
-            onEngineSegmentEnded(generation)
+            triggerPingPongHandoff(fromSlot = slot, gen = generation)
+            return
+        }
+
+        // Xiaomi MIUI 14 specific handling:
+        // If audio bus reported busy during handoff, do a fast 35ms micro-retry instead of long backoff
+        if (errorCode == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "MIUI 14 audio bus busy on $slot; fast 35ms micro-retry")
+            restartJob?.cancel()
+            restartJob = scope.launch {
+                delay(35L)
+                if (isSessionActive && generation == sessionGeneration) {
+                    startListeningSlot(slot, generation, isSilentReopen = true)
+                }
+            }
             return
         }
 
@@ -466,17 +524,17 @@ class SpeechEngineManager(
             return
         }
 
+        val nextSlot = if (slot == RecognizerSlot.SLOT_A) RecognizerSlot.SLOT_B else RecognizerSlot.SLOT_A
+
         when (errorCode) {
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
             SpeechRecognizer.ERROR_CLIENT -> {
-                // Reuse recognizer instance: only destroy and recreate if 2 or more consecutive critical failures
                 if (consecutiveErrors >= 2) {
-                    DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recreating recognizer after $consecutiveErrors critical failures")
-                    destroyRecognizer()
+                    DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recreating recognizer for $slot after $consecutiveErrors critical failures")
+                    destroyRecognizerSlot(slot)
                 }
                 _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
-                    scheduleRestart(delayMs = (settings.errorBackoffMs * consecutiveErrors).coerceAtLeast(150L), generation = generation)
+                    scheduleRestart(delayMs = (settings.errorBackoffMs * consecutiveErrors).coerceAtLeast(100L), generation = generation, targetSlot = nextSlot)
                 }
             }
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
@@ -492,54 +550,24 @@ class SpeechEngineManager(
             SpeechRecognizer.ERROR_SERVER -> {
                 _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
-                    scheduleRestart(delayMs = settings.errorBackoffMs * consecutiveErrors, generation = generation)
+                    scheduleRestart(delayMs = settings.errorBackoffMs * consecutiveErrors, generation = generation, targetSlot = nextSlot)
                 }
             }
             else -> {
                 _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
-                    scheduleRestart(delayMs = settings.errorBackoffMs, generation = generation)
+                    scheduleRestart(delayMs = settings.errorBackoffMs, generation = generation, targetSlot = nextSlot)
                 }
             }
         }
     }
 
-    private fun onEngineSegmentEnded(gen: Long) {
-        if (!isSessionActive || gen != sessionGeneration) return
-        val s = settingsRepository.cachedSettings
-        val elapsed = silenceElapsed()
-        if (elapsed < s.silenceCompleteMs) {
-            // User is still inside their thinking window: reopen the mic.
-            DiagnosticsLog.log(
-                DiagnosticsLog.Category.RECOGNIZER,
-                "Silent reopen (silence=${elapsed}ms of ${s.silenceCompleteMs}ms) (gen=$gen)"
-            )
-            _dictationState.value = DictationState.Restarting
-            restartJob?.cancel()
-            restartJob = scope.launch {
-                delay(MIN_REOPEN_DELAY_MS) // min gap prevents tight loops and ERROR_RECOGNIZER_BUSY
-                if (isSessionActive && gen == sessionGeneration) {
-                    startListeningInternal(gen, isSilentReopen = true)
-                }
-            }
-        } else {
-            // Real silence of the full configured length: use the existing behavior
-            DiagnosticsLog.log(
-                DiagnosticsLog.Category.RECOGNIZER,
-                "Silence window complete (silence=${elapsed}ms >= ${s.silenceCompleteMs}ms) (gen=$gen)"
-            )
-            _dictationState.value = DictationState.Restarting
-            scheduleRestart(delayMs = getRestartDelay(), generation = gen)
-        }
-    }
-
-    private fun scheduleRestart(delayMs: Long, generation: Long) {
+    private fun scheduleRestart(delayMs: Long, generation: Long, targetSlot: RecognizerSlot = activeSlot) {
         restartJob?.cancel()
         if (!isSessionActive || generation != sessionGeneration) return
 
         val settings = settingsRepository.cachedSettings
         if (settings.dictationMode == DictationMode.PAUSE_AND_RESTART && delayMs > 100) {
-            // Countdown visualizer
             restartJob = scope.launch {
                 val totalMs = delayMs
                 var remaining = totalMs
@@ -550,7 +578,7 @@ class SpeechEngineManager(
                     remaining -= step
                 }
                 if (isSessionActive && generation == sessionGeneration) {
-                    startListeningInternal(generation)
+                    startListeningSlot(targetSlot, generation)
                 }
             }
         } else {
@@ -558,7 +586,7 @@ class SpeechEngineManager(
             restartJob = scope.launch {
                 delay(delayMs)
                 if (isSessionActive && generation == sessionGeneration) {
-                    startListeningInternal(generation)
+                    startListeningSlot(targetSlot, generation)
                 }
             }
         }
@@ -585,7 +613,6 @@ class SpeechEngineManager(
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, settings.maxResults.coerceIn(1, 5))
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
 
-            // Only request offline recognition if the user enabled it (Bangla requires cloud recognition)
             if (settings.preferOffline) {
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
@@ -601,7 +628,7 @@ class SpeechEngineManager(
                 putExtra("android.speech.extra.ENABLE_FORMATTING", true)
             }
 
-            // Silence timing & dictation extras: extended 30s in continuous mode to prevent premature OS recognizer timeouts!
+            // Extended 30s continuous silence tolerances for uninterrupted dictation
             val silenceMs = if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else settings.silenceCompleteMs.coerceIn(800L, 8000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
@@ -622,7 +649,6 @@ class SpeechEngineManager(
             PackageManager.MATCH_ALL
         )
 
-        // Try selected service
         val targetPkg = settings.enginePackage
         for (info in services) {
             val serviceInfo = info.serviceInfo ?: continue
@@ -631,7 +657,6 @@ class SpeechEngineManager(
             }
         }
 
-        // Try Google search box recognition service fallback
         for (info in services) {
             val serviceInfo = info.serviceInfo ?: continue
             if (serviceInfo.packageName.contains("google", ignoreCase = true)) {
@@ -716,12 +741,12 @@ class SpeechEngineManager(
 
     fun release() {
         stopSession()
-        destroyRecognizer()
+        destroyRecognizersInternal()
         beepSuppressor.release()
     }
 
     companion object {
         private const val RMS_SPEECH_THRESHOLD_DB = 4.0f
-        private const val MIN_REOPEN_DELAY_MS = 150L
+        private const val XIAOMI_MIUI_HANDOFF_DELAY_MS = 40L
     }
 }
