@@ -132,9 +132,9 @@ Download the compiled APK package directly:
 
 ---
 
-## 🎛️ The 8 Stations of Kotha
+## 🎛️ The 9 Stations of Kotha
 
-Inside the Kotha app, configuration is organized into 8 modular control stations:
+Inside the Kotha app, configuration is organized into 9 modular control stations:
 
 | Station | Title | What You Can Configure |
 | :---: | :--- | :--- |
@@ -143,9 +143,10 @@ Inside the Kotha app, configuration is organized into 8 modular control stations
 | **03** | **Text Insertion** | Live partial streaming vs batch, Accessibility insertion vs clipboard paste, cursor following, live caption bubble. |
 | **04** | **Floating Orb** | Dimensions, squircle/circle shapes, canvas rings, idle/active opacities, keyboard-docking, double-tap actions. |
 | **05** | **Sound & Feel** | Beep suppression, soft audio cues, haptic feedback intensity, keep-screen-awake, audio ducking. |
-| **06** | **Language Tools** | Auto-danda (*দাঁড়ি*), punctuation conversion, Bengali ↔ Western numerals, voice commands, custom word replacement dictionary. |
+| **06** | **Language Tools** | Auto-danda (*দাঁড়ি*), punctuation conversion, Bengali ↔ Western numerals, custom word replacement dictionary. |
 | **07** | **System & Health** | Accessibility keeper watchdog, battery optimization bypass guide, MIUI/HyperOS permission ledger. |
-| **08** | **Data & Profiles** | Theme switching (Dark, Paper, AMOLED), JSON profile export/import, real-time diagnostic log. |
+| **08** | **Data & Profiles** | Theme switching (Dark, Paper, AMOLED), JSON profile export/import (includes all custom triggers & settings), event logs. |
+| **09** | **Voice Commands** | Configure and manage 15 smart voice editing & cursor actions with unlimited custom trigger chips, per-command On/Off switches, and confirmation popups. |
 
 ---
 
