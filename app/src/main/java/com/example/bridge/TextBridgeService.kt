@@ -4,10 +4,14 @@ import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.example.util.DiagnosticsLog
+import java.util.Locale
 
 class TextBridgeService : AccessibilityService() {
 
@@ -358,6 +362,165 @@ class TextBridgeService : AccessibilityService() {
                 DiagnosticsLog.Category.ERROR,
                 "applyPaste failed: ${e.message}"
             )
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun deleteLastWord(): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val (text, isHint) = extractActualFieldText(node)
+            if (isHint || text.isEmpty()) return false
+            val selStart = if (node.textSelectionStart >= 0) node.textSelectionStart else text.length
+            val before = text.substring(0, selStart)
+            val after = text.substring(selStart)
+            val trimmedBefore = before.trimEnd()
+            val lastDelim = trimmedBefore.lastIndexOfAny(charArrayOf(' ', '\n', '\t', '।', '.', ',', '?', '!', ';', ':'))
+            val newBefore = if (lastDelim == -1) "" else before.substring(0, lastDelim + 1)
+            val newText = newBefore + after
+            val newCursor = newBefore.length
+            applySetText(newText)
+            applySelection(newCursor, newCursor)
+            true
+        } catch (e: Exception) {
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun deleteLastSentence(): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val (text, isHint) = extractActualFieldText(node)
+            if (isHint || text.isEmpty()) return false
+            val selStart = if (node.textSelectionStart >= 0) node.textSelectionStart else text.length
+            val before = text.substring(0, selStart)
+            val after = text.substring(selStart)
+            val trimmedBefore = before.trimEnd()
+            val lastPunct = trimmedBefore.dropLast(1).lastIndexOfAny(charArrayOf('।', '.', '?', '!', '\n'))
+            val newBefore = if (lastPunct == -1) "" else before.substring(0, lastPunct + 1).trimStart()
+            val newText = if (newBefore.isNotEmpty() && !newBefore.endsWith(" ")) "$newBefore $after" else "$newBefore$after"
+            val newCursor = newBefore.length
+            applySetText(newText)
+            applySelection(newCursor, newCursor)
+            true
+        } catch (e: Exception) {
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun clearAll(): Boolean {
+        return applySetText("")
+    }
+
+    fun applySend(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        return try {
+            val sendKeywords = listOf("send", "পাঠাও", "প্রেরণ", "submit", "post", "enter", "send_button", "sendbutton")
+            val found = findActionNode(root, sendKeywords)
+            if (found != null) {
+                val clicked = found.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                try { found.recycle() } catch (ignored: Exception) {}
+                clicked
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        } finally {
+            try { root.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    private fun findActionNode(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
+        val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT) ?: ""
+        val text = node.text?.toString()?.lowercase(Locale.ROOT) ?: ""
+        val resName = node.viewIdResourceName?.lowercase(Locale.ROOT) ?: ""
+        if (node.isClickable && keywords.any { desc.contains(it) || text.contains(it) || resName.contains(it) }) {
+            return node
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val match = findActionNode(child, keywords)
+            if (match != null) return match
+            try { child.recycle() } catch (ignored: Exception) {}
+        }
+        return null
+    }
+
+    fun applyCopy(context: Context): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            if (node.performAction(AccessibilityNodeInfo.ACTION_COPY)) {
+                android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+                return true
+            }
+            val (text, isHint) = extractActualFieldText(node)
+            if (!isHint && text.isNotEmpty()) {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cm?.setPrimaryClip(ClipData.newPlainText("Kotha", text))
+                android.widget.Toast.makeText(context, "Copied text to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun moveCursorToEnd(): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val len = node.text?.length ?: 0
+            applySelection(len, len)
+        } catch (e: Exception) {
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun moveCursorToStart(): Boolean {
+        return applySelection(0, 0)
+    }
+
+    fun capitalizeLastWord(): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val (text, isHint) = extractActualFieldText(node)
+            if (isHint || text.isEmpty()) return false
+            val cursor = if (node.textSelectionStart >= 0) node.textSelectionStart else text.length
+            if (cursor <= 0) return false
+            val before = text.substring(0, cursor)
+            val after = text.substring(cursor)
+            val trimmed = before.trimEnd()
+            val lastDelim = trimmed.lastIndexOfAny(charArrayOf(' ', '\n', '\t', '।', '.', ',', '?', '!', ';', ':'))
+            val wordStart = if (lastDelim == -1) 0 else lastDelim + 1
+            if (wordStart < trimmed.length) {
+                val word = trimmed.substring(wordStart)
+                val capWord = word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                val newBefore = before.substring(0, wordStart) + capWord + before.substring(trimmed.length)
+                val newText = newBefore + after
+                applySetText(newText)
+                applySelection(cursor, cursor)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
             false
         } finally {
             try { node?.recycle() } catch (ignored: Exception) {}

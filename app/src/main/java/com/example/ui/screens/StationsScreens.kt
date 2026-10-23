@@ -169,6 +169,7 @@ fun StationScreen(
                 "06" -> item { Station06LanguageTools(settings, settingsRepo) }
                 "07" -> item { Station07System(settings, settingsRepo) }
                 "08" -> item { Station08Data(settings, settingsRepo) }
+                "09" -> item { Station09VoiceCommands(settings, settingsRepo) }
             }
             item { Spacer(modifier = Modifier.height(48.dp)) }
         }
@@ -2033,3 +2034,312 @@ private fun SettingToggleRow(
         )
     }
 }
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsRepository) {
+    val colors = LocalKothaColors.current
+    val context = LocalContext.current
+    val commands = remember(settings.voiceCommandsJson) {
+        LanguageTools.commandsFromJson(settings.voiceCommandsJson)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SettingToggleRow(
+            title = "Voice Commands Master Switch • ভয়েস কমান্ড চালু/বন্ধ",
+            description = "কথা বলার সময় নির্দিষ্ট ভয়েস কমান্ড বললে টেক্সট লেখার বদলে কমান্ডটি কার্যকর হবে (যেমন নতুন লাইন, আনডু, মোছা, পাঠানো ইত্যাদি)।",
+            checked = settings.voiceCommandsEnabled,
+            onCheckedChange = { repo.updateSettings { s -> s.copy(voiceCommandsEnabled = it) } }
+        )
+
+        SettingToggleRow(
+            title = "Confirm Sensitive Commands • সংবেদনশীল কমান্ডে নিশ্চিতকরণ পপআপ",
+            description = "বাক্য বা শব্দ মোছা, সব টেক্সট ক্লিয়ার করা বা মেসেজ সেন্ড করার মতো স্পর্শকাতর কমান্ড উচ্চারিত হলে সরাসরি প্রয়োগ না করে স্ক্রিনে একটি দ্রুত কনফার্মেশন পপআপ দেখাবে, যাতে অসাবধানতাবশত প্রয়োজনীয় লেখা মুছে না যায়।",
+            checked = settings.confirmSensitiveCommands,
+            onCheckedChange = { repo.updateSettings { s -> s.copy(confirmSensitiveCommands = it) } }
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "15 SMART COMMANDS (${commands.size} ACTIONS)",
+                fontFamily = MonoFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                letterSpacing = 1.sp,
+                color = colors.textMuted
+            )
+
+            Button(
+                onClick = {
+                    repo.updateSettings { it.copy(voiceCommandsJson = "") }
+                    Toast.makeText(context, "All commands reset to defaults", Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
+                shape = RoundedCornerShape(2.dp),
+                modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = "Reset all",
+                    tint = colors.accent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Reset All",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    color = colors.textPrimary
+                )
+            }
+        }
+
+        commands.forEach { cmd ->
+            var newTriggerInput by remember { mutableStateOf("") }
+            var isBatchEditOpen by remember { mutableStateOf(false) }
+            var batchEditText by remember(cmd.triggers) { mutableStateOf(cmd.triggers.joinToString(", ")) }
+
+            val defaultCmd = LanguageTools.defaultVoiceCommands.find { it.id == cmd.id }
+            val isCustomized = defaultCmd != null && cmd.triggers != defaultCmd.triggers
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        if (isCustomized) colors.accent.copy(alpha = 0.5f) else colors.hairline,
+                        RoundedCornerShape(2.dp)
+                    )
+                    .background(colors.surface)
+                    .padding(14.dp)
+            ) {
+                // Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = cmd.actionName,
+                                fontFamily = DisplayFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = colors.textPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "(${cmd.triggers.size})",
+                                fontFamily = MonoFont,
+                                fontSize = 11.sp,
+                                color = colors.accent
+                            )
+                        }
+                        Text(
+                            text = cmd.description,
+                            fontFamily = MonoFont,
+                            fontSize = 11.sp,
+                            color = colors.textMuted
+                        )
+                    }
+
+                    if (isCustomized) {
+                        IconButton(
+                            onClick = {
+                                if (defaultCmd != null) {
+                                    val updated = commands.map { if (it.id == cmd.id) defaultCmd else it }
+                                    repo.updateSettings {
+                                        it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                    }
+                                    Toast.makeText(context, "Reset ${cmd.actionName}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RestartAlt,
+                                contentDescription = "Reset to default triggers",
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Active Triggers (Unlimited Chips)
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    cmd.triggers.forEach { trig ->
+                        Row(
+                            modifier = Modifier
+                                .border(1.dp, colors.hairline, RoundedCornerShape(14.dp))
+                                .background(colors.background)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = trig,
+                                fontFamily = MonoFont,
+                                fontSize = 11.sp,
+                                color = colors.textPrimary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove trigger",
+                                tint = colors.textMuted,
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable {
+                                        val updatedTriggers = cmd.triggers.filter { it != trig }
+                                        val updated = commands.map { if (it.id == cmd.id) it.copy(triggers = updatedTriggers) else it }
+                                        repo.updateSettings {
+                                            it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                        }
+                                    }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Add Trigger Input Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newTriggerInput,
+                        onValueChange = { newTriggerInput = it },
+                        placeholder = {
+                            Text(
+                                "Add trigger(s), e.g. বাক্য কাটো...",
+                                fontFamily = MonoFont,
+                                fontSize = 11.sp,
+                                color = colors.textMuted
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accent,
+                            unfocusedBorderColor = colors.hairline,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary,
+                            cursorColor = colors.accent
+                        ),
+                        shape = RoundedCornerShape(2.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontFamily = MonoFont,
+                            fontSize = 12.sp
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (newTriggerInput.isNotBlank()) {
+                                val additions = newTriggerInput
+                                    .split(",")
+                                    .map { it.trim() }
+                                    .filter { it.isNotEmpty() }
+                                val merged = (cmd.triggers + additions).distinct()
+                                val updated = commands.map {
+                                    if (it.id == cmd.id) it.copy(triggers = merged) else it
+                                }
+                                repo.updateSettings {
+                                    it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                }
+                                newTriggerInput = ""
+                                Toast.makeText(context, "Added triggers for ${cmd.actionName}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                        shape = RoundedCornerShape(2.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Add",
+                            fontFamily = MonoFont,
+                            fontSize = 11.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Collapsible Batch Edit
+                Row(
+                    modifier = Modifier
+                        .clickable { isBatchEditOpen = !isBatchEditOpen }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isBatchEditOpen) "Hide batch text editor ▲" else "Batch edit comma-separated text ▼",
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textMuted
+                    )
+                }
+
+                if (isBatchEditOpen) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = batchEditText,
+                        onValueChange = { batchEditText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accent,
+                            unfocusedBorderColor = colors.hairline,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
+                        ),
+                        shape = RoundedCornerShape(2.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, fontSize = 11.sp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Button(
+                        onClick = {
+                            val items = batchEditText
+                                .split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                            val updated = commands.map {
+                                if (it.id == cmd.id) it.copy(triggers = items) else it
+                            }
+                            repo.updateSettings {
+                                it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                            }
+                            Toast.makeText(context, "Saved all triggers", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
+                        shape = RoundedCornerShape(2.dp),
+                        modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = "Save Batch Text", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
+                    }
+                }
+            }
+        }
+    }
+}
+

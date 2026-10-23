@@ -174,6 +174,8 @@ data class KothaSettings(
     val digitConversionModeName: String = "NONE",
     val autoCapitalizeLatin: Boolean = false,
     val voiceCommandsEnabled: Boolean = true,
+    val voiceCommandsJson: String = "",
+    val confirmSensitiveCommands: Boolean = false,
     val replacementsJson: String = "",
 
     // 07 System
@@ -267,6 +269,8 @@ data class KothaSettings(
         root.put("digitConversionModeName", digitConversionModeName)
         root.put("autoCapitalizeLatin", autoCapitalizeLatin)
         root.put("voiceCommandsEnabled", voiceCommandsEnabled)
+        root.put("voiceCommandsJson", voiceCommandsJson)
+        root.put("confirmSensitiveCommands", confirmSensitiveCommands)
         root.put("replacementsJson", replacementsJson)
 
         root.put("keepAccessibilityAlive", keepAccessibilityAlive)
@@ -382,6 +386,8 @@ data class KothaSettings(
                 digitConversionModeName = root.optString("digitConversionModeName", base.digitConversionModeName),
                 autoCapitalizeLatin = root.optBoolean("autoCapitalizeLatin", base.autoCapitalizeLatin),
                 voiceCommandsEnabled = root.optBoolean("voiceCommandsEnabled", base.voiceCommandsEnabled),
+                voiceCommandsJson = root.optString("voiceCommandsJson", base.voiceCommandsJson),
+                confirmSensitiveCommands = root.optBoolean("confirmSensitiveCommands", base.confirmSensitiveCommands),
                 replacementsJson = root.optString("replacementsJson", base.replacementsJson),
 
                 keepAccessibilityAlive = root.optBoolean("keepAccessibilityAlive", base.keepAccessibilityAlive),

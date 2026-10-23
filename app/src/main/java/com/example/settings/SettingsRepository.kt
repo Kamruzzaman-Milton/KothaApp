@@ -211,6 +211,8 @@ class SettingsRepository(context: Context) {
         val digitConversion = try { prefs.getString(KEY_DIGIT_CONVERSION, base.digitConversionModeName) ?: base.digitConversionModeName } catch (e: Exception) { base.digitConversionModeName }
         val autoCapLatin = try { prefs.getBoolean(KEY_AUTO_CAP_LATIN, base.autoCapitalizeLatin) } catch (e: Exception) { base.autoCapitalizeLatin }
         val voiceCommands = try { prefs.getBoolean(KEY_VOICE_COMMANDS, base.voiceCommandsEnabled) } catch (e: Exception) { base.voiceCommandsEnabled }
+        val voiceCommandsJson = try { prefs.getString(KEY_VOICE_COMMANDS_JSON, base.voiceCommandsJson) ?: base.voiceCommandsJson } catch (e: Exception) { base.voiceCommandsJson }
+        val confirmSensitiveCommands = try { prefs.getBoolean(KEY_CONFIRM_SENSITIVE_COMMANDS, base.confirmSensitiveCommands) } catch (e: Exception) { base.confirmSensitiveCommands }
         val replacementsJson = try { prefs.getString(KEY_REPLACEMENTS_JSON, base.replacementsJson) ?: base.replacementsJson } catch (e: Exception) { base.replacementsJson }
 
         val keepAccessibilityAlive = try { prefs.getBoolean(KEY_KEEP_ACCESSIBILITY_ALIVE, base.keepAccessibilityAlive) } catch (e: Exception) { base.keepAccessibilityAlive }
@@ -301,6 +303,8 @@ class SettingsRepository(context: Context) {
             digitConversionModeName = digitConversion,
             autoCapitalizeLatin = autoCapLatin,
             voiceCommandsEnabled = voiceCommands,
+            voiceCommandsJson = voiceCommandsJson,
+            confirmSensitiveCommands = confirmSensitiveCommands,
             replacementsJson = replacementsJson,
             keepAccessibilityAlive = keepAccessibilityAlive,
             showBootNotification = showBootNotif,
@@ -402,6 +406,8 @@ class SettingsRepository(context: Context) {
             editor.putString(KEY_DIGIT_CONVERSION, updated.digitConversionModeName)
             editor.putBoolean(KEY_AUTO_CAP_LATIN, updated.autoCapitalizeLatin)
             editor.putBoolean(KEY_VOICE_COMMANDS, updated.voiceCommandsEnabled)
+            editor.putString(KEY_VOICE_COMMANDS_JSON, updated.voiceCommandsJson)
+            editor.putBoolean(KEY_CONFIRM_SENSITIVE_COMMANDS, updated.confirmSensitiveCommands)
             editor.putString(KEY_REPLACEMENTS_JSON, updated.replacementsJson)
 
             editor.putBoolean(KEY_KEEP_ACCESSIBILITY_ALIVE, updated.keepAccessibilityAlive)
@@ -549,6 +555,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_DIGIT_CONVERSION = "digit_conversion"
         private const val KEY_AUTO_CAP_LATIN = "auto_cap_latin"
         private const val KEY_VOICE_COMMANDS = "voice_commands"
+        private const val KEY_VOICE_COMMANDS_JSON = "voice_commands_json"
+        private const val KEY_CONFIRM_SENSITIVE_COMMANDS = "confirm_sensitive_commands"
         private const val KEY_REPLACEMENTS_JSON = "replacements_json"
 
         private const val KEY_KEEP_ACCESSIBILITY_ALIVE = "keep_accessibility_alive"

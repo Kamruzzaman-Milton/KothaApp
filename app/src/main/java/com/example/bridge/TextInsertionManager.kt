@@ -53,7 +53,8 @@ class TextInsertionManager(
     fun handleFinalResult(
         rawFinalText: String,
         settings: KothaSettings,
-        onVoiceCommand: ((LanguageTools.VoiceCommandResult) -> Unit)? = null
+        onVoiceCommand: ((LanguageTools.VoiceCommandResult) -> Unit)? = null,
+        onConfirmCommand: ((actionName: String, rawText: String, onApply: () -> Unit, onInsertAsText: () -> Unit) -> Unit)? = null
     ) {
         val trimmed = rawFinalText.trim()
         if (trimmed.isEmpty()) {
@@ -63,25 +64,64 @@ class TextInsertionManager(
 
         // 1. Check Voice Commands if enabled
         if (settings.voiceCommandsEnabled) {
-            val cmd = LanguageTools.checkVoiceCommand(
-                trimmed,
-                isBangla = settings.primaryLanguage.startsWith("bn", ignoreCase = true)
-            )
+            val commands = LanguageTools.commandsFromJson(settings.voiceCommandsJson)
+            val cmd = LanguageTools.checkVoiceCommand(trimmed, commands)
             if (cmd !is LanguageTools.VoiceCommandResult.None) {
-                DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Executed voice command: $cmd")
-                onVoiceCommand?.invoke(cmd)
-                when (cmd) {
-                    LanguageTools.VoiceCommandResult.NewLine -> insertTextInternal("\n", isFinal = true, settings = settings)
-                    LanguageTools.VoiceCommandResult.NewParagraph -> insertTextInternal("\n\n", isFinal = true, settings = settings)
-                    LanguageTools.VoiceCommandResult.Undo -> performUndo()
-                    else -> {}
+                val executeAction = {
+                    executeCommandAction(cmd, settings, onVoiceCommand)
+                    _liveCaptionText.value = ""
                 }
-                _liveCaptionText.value = ""
+                val insertAsText = {
+                    insertFormattedFinal(trimmed, settings)
+                }
+
+                if (settings.confirmSensitiveCommands && LanguageTools.isSensitiveCommand(cmd) && onConfirmCommand != null) {
+                    val actionName = LanguageTools.getCommandName(cmd)
+                    onConfirmCommand.invoke(actionName, trimmed, executeAction, insertAsText)
+                    _liveCaptionText.value = ""
+                    return
+                }
+
+                executeAction()
                 return
             }
         }
 
         // 2. Format with Language Tools
+        insertFormattedFinal(trimmed, settings)
+    }
+
+    private fun executeCommandAction(
+        cmd: LanguageTools.VoiceCommandResult,
+        settings: KothaSettings,
+        onVoiceCommand: ((LanguageTools.VoiceCommandResult) -> Unit)?
+    ) {
+        DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Executed voice command: $cmd")
+        onVoiceCommand?.invoke(cmd)
+        when (cmd) {
+            LanguageTools.VoiceCommandResult.NewLine -> insertTextInternal("\n", isFinal = true, settings = settings)
+            LanguageTools.VoiceCommandResult.NewParagraph -> insertTextInternal("\n\n", isFinal = true, settings = settings)
+            LanguageTools.VoiceCommandResult.DeleteLastWord -> TextBridgeService.instance?.deleteLastWord()
+            LanguageTools.VoiceCommandResult.DeleteLastSentence -> TextBridgeService.instance?.deleteLastSentence()
+            LanguageTools.VoiceCommandResult.ClearAll -> TextBridgeService.instance?.clearAll()
+            LanguageTools.VoiceCommandResult.Send -> TextBridgeService.instance?.applySend()
+            LanguageTools.VoiceCommandResult.Undo -> performUndo()
+            LanguageTools.VoiceCommandResult.AddComma -> insertTextInternal(", ", isFinal = true, settings = settings)
+            LanguageTools.VoiceCommandResult.AddQuestionMark -> insertTextInternal("? ", isFinal = true, settings = settings)
+            LanguageTools.VoiceCommandResult.AddDari -> {
+                val symbol = if (settings.primaryLanguage.startsWith("bn", ignoreCase = true)) "। " else ". "
+                insertTextInternal(symbol, isFinal = true, settings = settings)
+            }
+            LanguageTools.VoiceCommandResult.Capitalize -> TextBridgeService.instance?.capitalizeLastWord()
+            LanguageTools.VoiceCommandResult.SelectAll -> TextBridgeService.instance?.applySelectAll()
+            LanguageTools.VoiceCommandResult.CopyText -> TextBridgeService.instance?.applyCopy(context)
+            LanguageTools.VoiceCommandResult.MoveToEnd -> TextBridgeService.instance?.moveCursorToEnd()
+            LanguageTools.VoiceCommandResult.MoveToStart -> TextBridgeService.instance?.moveCursorToStart()
+            else -> {}
+        }
+    }
+
+    private fun insertFormattedFinal(rawText: String, settings: KothaSettings) {
         val replacements = LanguageTools.rulesFromJson(settings.replacementsJson)
         val digitMode = try {
             LanguageTools.DigitConversionMode.valueOf(settings.digitConversionModeName)
@@ -90,7 +130,7 @@ class TextInsertionManager(
         }
 
         val formattedText = LanguageTools.formatFinalUtterance(
-            rawText = trimmed,
+            rawText = rawText,
             languageCode = settings.primaryLanguage,
             autoPunctuate = settings.autoPunctuate,
             digitMode = digitMode,

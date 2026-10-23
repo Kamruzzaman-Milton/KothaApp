@@ -34,6 +34,7 @@ class OrbWindowManager(
     private var floatingView: OrbFloatingView? = null
     private var captionBubbleView: CaptionBubbleOverlay? = null
     private var quickPanelView: QuickPanelOverlay? = null
+    private var confirmOverlayView: CommandConfirmOverlay? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var captionLayoutParams: WindowManager.LayoutParams? = null
 
@@ -418,8 +419,64 @@ class OrbWindowManager(
         }
     }
 
+    fun showCommandConfirmation(
+        commandName: String,
+        rawSpokenText: String,
+        onConfirm: () -> Unit,
+        onInsertAsText: () -> Unit
+    ) {
+        if (!canDrawOverlays()) {
+            onConfirm()
+            return
+        }
+        hideCommandConfirmation()
+
+        val density = context.resources.displayMetrics.density
+        val width = (320 * density).toInt().coerceAtMost((screenWidth * 0.90f).toInt())
+        val params = WindowManager.LayoutParams(
+            width,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        val overlay = CommandConfirmOverlay(
+            context = context,
+            commandName = commandName,
+            rawSpokenText = rawSpokenText,
+            onConfirm = onConfirm,
+            onInsertAsText = onInsertAsText,
+            onDismiss = { hideCommandConfirmation() }
+        )
+        confirmOverlayView = overlay
+        try {
+            windowManager.addView(overlay, params)
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to show confirm overlay: ${e.message}")
+            onConfirm()
+        }
+    }
+
+    fun hideCommandConfirmation() {
+        confirmOverlayView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (ignored: Exception) {}
+            confirmOverlayView = null
+        }
+    }
+
     fun hideOrb() {
         hideQuickPanel()
+        hideCommandConfirmation()
         captionBubbleView?.let {
             try {
                 windowManager.removeView(it)

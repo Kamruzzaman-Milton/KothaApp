@@ -24,6 +24,7 @@ import com.example.settings.SettingsRepository
 import com.example.settings.VisibilityRule
 import com.example.util.AccessibilityKeeper
 import com.example.util.DiagnosticsLog
+import com.example.util.LanguageTools
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -63,7 +64,37 @@ class DictationService : Service() {
                     rawFinalText = final,
                     settings = settingsRepository.cachedSettings,
                     onVoiceCommand = { cmd ->
-                        // Handle voice command callback
+                        when (cmd) {
+                            is LanguageTools.VoiceCommandResult.StopListening -> {
+                                speechEngineManager.stopSession()
+                            }
+                            is LanguageTools.VoiceCommandResult.SwitchLanguage -> {
+                                val s = settingsRepository.cachedSettings
+                                val newPrimary = s.secondaryLanguage
+                                val newSecondary = s.primaryLanguage
+                                settingsRepository.updateSettings {
+                                    it.copy(primaryLanguage = newPrimary, secondaryLanguage = newSecondary)
+                                }
+                                speechEngineManager.stopSession()
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    speechEngineManager.startSession()
+                                }, 350)
+                                android.widget.Toast.makeText(
+                                    this,
+                                    "Language: $newPrimary",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            else -> {}
+                        }
+                    },
+                    onConfirmCommand = { actionName, rawText, onApply, onInsertAsText ->
+                        orbWindowManager.showCommandConfirmation(
+                            commandName = actionName,
+                            rawSpokenText = rawText,
+                            onConfirm = onApply,
+                            onInsertAsText = onInsertAsText
+                        )
                     }
                 )
             }
