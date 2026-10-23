@@ -2052,13 +2052,6 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
             onCheckedChange = { repo.updateSettings { s -> s.copy(voiceCommandsEnabled = it) } }
         )
 
-        SettingToggleRow(
-            title = "Confirm Sensitive Commands • সংবেদনশীল কমান্ডে নিশ্চিতকরণ পপআপ",
-            description = "বাক্য বা শব্দ মোছা, সব টেক্সট ক্লিয়ার করা বা মেসেজ সেন্ড করার মতো স্পর্শকাতর কমান্ড উচ্চারিত হলে সরাসরি প্রয়োগ না করে স্ক্রিনে একটি দ্রুত কনফার্মেশন পপআপ দেখাবে, যাতে অসাবধানতাবশত প্রয়োজনীয় লেখা মুছে না যায়।",
-            checked = settings.confirmSensitiveCommands,
-            onCheckedChange = { repo.updateSettings { s -> s.copy(confirmSensitiveCommands = it) } }
-        )
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2105,20 +2098,20 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
             var batchEditText by remember(cmd.triggers) { mutableStateOf(cmd.triggers.joinToString(", ")) }
 
             val defaultCmd = LanguageTools.defaultVoiceCommands.find { it.id == cmd.id }
-            val isCustomized = defaultCmd != null && cmd.triggers != defaultCmd.triggers
+            val isCustomized = defaultCmd != null && (cmd.triggers != defaultCmd.triggers || cmd.enabled != defaultCmd.enabled || cmd.requireConfirmation != defaultCmd.requireConfirmation)
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(
                         1.dp,
-                        if (isCustomized) colors.accent.copy(alpha = 0.5f) else colors.hairline,
+                        if (!cmd.enabled) colors.hairline.copy(alpha = 0.5f) else if (isCustomized) colors.accent.copy(alpha = 0.5f) else colors.hairline,
                         RoundedCornerShape(2.dp)
                     )
-                    .background(colors.surface)
+                    .background(if (cmd.enabled) colors.surface else colors.surface.copy(alpha = 0.5f))
                     .padding(14.dp)
             ) {
-                // Header Row
+                // Header Row with Title and Master Enable/Disable for this command
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2131,14 +2124,14 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                                 fontFamily = DisplayFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = colors.textPrimary
+                                color = if (cmd.enabled) colors.textPrimary else colors.textMuted
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "(${cmd.triggers.size})",
                                 fontFamily = MonoFont,
                                 fontSize = 11.sp,
-                                color = colors.accent
+                                color = if (cmd.enabled) colors.accent else colors.textMuted
                             )
                         }
                         Text(
@@ -2149,27 +2142,90 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                         )
                     }
 
-                    if (isCustomized) {
-                        IconButton(
-                            onClick = {
-                                if (defaultCmd != null) {
-                                    val updated = commands.map { if (it.id == cmd.id) defaultCmd else it }
-                                    repo.updateSettings {
-                                        it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isCustomized) {
+                            IconButton(
+                                onClick = {
+                                    if (defaultCmd != null) {
+                                        val updated = commands.map { if (it.id == cmd.id) defaultCmd else it }
+                                        repo.updateSettings {
+                                            it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                        }
+                                        Toast.makeText(context, "Reset ${cmd.actionName}", Toast.LENGTH_SHORT).show()
                                     }
-                                    Toast.makeText(context, "Reset ${cmd.actionName}", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.RestartAlt,
-                                contentDescription = "Reset to default triggers",
-                                tint = colors.textMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RestartAlt,
+                                    contentDescription = "Reset to default",
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
+
+                        // Turn On/Off Toggle for this command
+                        InkBracketToggle(
+                            checked = cmd.enabled,
+                            onCheckedChange = { isEnabled ->
+                                val updated = commands.map { if (it.id == cmd.id) it.copy(enabled = isEnabled) else it }
+                                repo.updateSettings {
+                                    it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                }
+                            }
+                        )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Per-Command Confirmation Toggle Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.hairline.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                        .background(colors.background.copy(alpha = 0.6f))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Require Confirmation Popup • নিশ্চিতকরণ পপআপ",
+                            fontFamily = MonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = if (cmd.requireConfirmation) colors.accent else colors.textPrimary
+                        )
+                        Text(
+                            text = if (cmd.requireConfirmation) "সরাসরি প্রয়োগ না করে নিশ্চিতকরণ কার্ড দেখাবে" else "সরাসরি প্রয়োগ করবে (পপআপ ছাড়া)",
+                            fontFamily = MonoFont,
+                            fontSize = 10.sp,
+                            color = colors.textMuted
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    InkBracketToggle(
+                        checked = cmd.requireConfirmation,
+                        onCheckedChange = { isReq ->
+                            val updated = commands.map { if (it.id == cmd.id) it.copy(requireConfirmation = isReq) else it }
+                            repo.updateSettings {
+                                it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                            }
+                        }
+                    )
+                }
+
+                if (!cmd.enabled) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "⚠️ এই কমান্ডটি বন্ধ রাখা হয়েছে — মুখে বললে সাধারণ টেক্সট হিসেবে লেখা হবে।",
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textMuted
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))

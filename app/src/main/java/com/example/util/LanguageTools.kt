@@ -41,7 +41,9 @@ object LanguageTools {
         val id: String,
         val actionName: String,
         val description: String,
-        val triggers: List<String>
+        val triggers: List<String>,
+        val enabled: Boolean = true,
+        val requireConfirmation: Boolean = false
     )
 
     val defaultVoiceCommands = listOf(
@@ -49,127 +51,179 @@ object LanguageTools {
             id = "new_line",
             actionName = "New Line (নতুন লাইন)",
             description = "Inserts a single line break",
-            triggers = listOf("নতুন লাইন", "পরের লাইন", "new line")
+            triggers = listOf("নতুন লাইন", "পরের লাইন", "new line"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "new_paragraph",
             actionName = "New Paragraph (নতুন প্যারা)",
             description = "Inserts a paragraph break (double newline)",
-            triggers = listOf("নতুন প্যারা", "new paragraph")
+            triggers = listOf("নতুন প্যারা", "new paragraph"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "delete_word",
             actionName = "Delete Last Word (শেষ শব্দ কাটো)",
             description = "Deletes the preceding word before cursor",
-            triggers = listOf("লাস্ট শব্দ কাটো", "শব্দ মুছুন", "delete word", "delete last word", "আগের শব্দ মুছো")
+            triggers = listOf("লাস্ট শব্দ কাটো", "শব্দ মুছুন", "delete word", "delete last word", "আগের শব্দ মুছো"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "delete_sentence",
             actionName = "Delete Sentence (শেষ বাক্য কাটো)",
             description = "Deletes preceding clause or sentence up to punctuation",
-            triggers = listOf("শেষ বাক্য কাটো", "বাক্য মুছো", "delete sentence", "আগের বাক্য মুছো")
+            triggers = listOf("শেষ বাক্য কাটো", "বাক্য মুছো", "বাক্যটা মুছো", "delete sentence", "আগের বাক্য মুছো"),
+            enabled = true,
+            requireConfirmation = true
         ),
         VoiceCommandConfig(
             id = "clear_all",
             actionName = "Clear All (সব মুছো)",
             description = "Clears all text in the focused input field",
-            triggers = listOf("সব মুছো", "সব ক্লিয়ার করো", "clear all", "delete all")
+            triggers = listOf("সব মুছো", "সব ক্লিয়ার করো", "clear all", "delete all"),
+            enabled = true,
+            requireConfirmation = true
         ),
         VoiceCommandConfig(
             id = "send",
             actionName = "Send / Submit (পাঠাও)",
             description = "Clicks Send button in messaging / chat apps",
-            triggers = listOf("সেন্ড করো", "পাঠাও", "send message", "সাবমিট", "সেন্ড")
+            triggers = listOf("সেন্ড করো", "পাঠাও", "send message", "সাবমিট", "সেন্ড"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "undo",
             actionName = "Undo (আনডু)",
             description = "Reverts the last voice insertion",
-            triggers = listOf("আনডু", "undo", "বাতিল করো", "পূর্বাবস্থায় ফেরান")
+            triggers = listOf("আনডু", "undo", "বাতিল করো", "পূর্বাবস্থায় ফেরান"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "add_comma",
             actionName = "Add Comma (কমা)",
             description = "Inserts a comma symbol (,)",
-            triggers = listOf("কমা", "comma")
+            triggers = listOf("কমা", "comma"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "add_question",
             actionName = "Add Question Mark (জিজ্ঞাসাচিহ্ন)",
             description = "Inserts a question mark (?)",
-            triggers = listOf("জিজ্ঞাসাচিহ্ন", "প্রশ্নবোধক চিহ্ন", "question mark", "প্রশ্ন চিহ্ন")
+            triggers = listOf("জিজ্ঞাসাচিহ্ন", "প্রশ্নবোধক চিহ্ন", "question mark", "প্রশ্ন চিহ্ন"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "add_dari",
             actionName = "Add Dari / Period (দাঁড়ি)",
             description = "Inserts Bengali Dari (।) or period (.)",
-            triggers = listOf("দাঁড়ি", "দাড়ি", "পূর্ণচ্ছেদ", "period", "full stop")
+            triggers = listOf("দাঁড়ি", "দাড়ি", "পূর্ণচ্ছেদ", "period", "full stop"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "capitalize",
             actionName = "Capitalize (বড় হাত)",
             description = "Capitalizes initial letter of previous word",
-            triggers = listOf("ক্যাপিটালাইজ", "capitalize", "বড় হাত")
+            triggers = listOf("ক্যাপিটালাইজ", "capitalize", "বড় হাত"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "select_all",
             actionName = "Select All (সব সিলেক্ট করো)",
             description = "Selects all content in the text box",
-            triggers = listOf("সব সিলেক্ট করো", "select all")
+            triggers = listOf("সব সিলেক্ট করো", "select all"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "copy_text",
             actionName = "Copy Text (কপি করো)",
             description = "Copies text or selection to clipboard",
-            triggers = listOf("সব কপি করো", "কপি", "copy text", "কপি করো")
+            triggers = listOf("সব কপি করো", "কপি", "copy text", "কপি করো"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "move_end",
             actionName = "Move to End (শেষে যাও)",
             description = "Repositions cursor to the end of text",
-            triggers = listOf("শেষে যাও", "go to end", "কার্সর শেষে নাও", "move to end")
+            triggers = listOf("শেষে যাও", "go to end", "কার্সর শেষে নাও", "move to end"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "move_start",
             actionName = "Move to Start (শুরুতে যাও)",
             description = "Repositions cursor to the beginning of text",
-            triggers = listOf("শুরুতে যাও", "go to start", "কার্সর শুরুতে নাও", "move to start")
+            triggers = listOf("শুরুতে যাও", "go to start", "কার্সর শুরুতে নাও", "move to start"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "switch_lang",
             actionName = "Switch Language (ভাষা বদলাও)",
             description = "Swaps primary and secondary speech recognition languages",
-            triggers = listOf("ভাষা বদলাও", "বাংলা করো", "switch language", "switch to english")
+            triggers = listOf("ভাষা বদলাও", "বাংলা করো", "switch language", "switch to english"),
+            enabled = true,
+            requireConfirmation = false
         ),
         VoiceCommandConfig(
             id = "stop_listening",
             actionName = "Stop Listening (শোনা বন্ধ)",
             description = "Stops active speech recognition session",
-            triggers = listOf("শোনা বন্ধ", "শোনা বন্ধ করুন", "stop listening")
+            triggers = listOf("শোনা বন্ধ", "শোনা বন্ধ করুন", "stop listening"),
+            enabled = true,
+            requireConfirmation = false
         )
+    )
+
+    private data class StoredConfig(
+        val triggers: List<String>?,
+        val enabled: Boolean?,
+        val requireConfirmation: Boolean?
     )
 
     fun commandsFromJson(json: String): List<VoiceCommandConfig> {
         if (json.isBlank()) return defaultVoiceCommands
         return try {
             val array = org.json.JSONArray(json)
-            val customMap = mutableMapOf<String, List<String>>()
+            val customMap = mutableMapOf<String, StoredConfig>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val id = obj.optString("id")
                 val trigsArr = obj.optJSONArray("triggers")
-                if (id.isNotBlank() && trigsArr != null) {
-                    val trigs = mutableListOf<String>()
+                val trigs = if (trigsArr != null) {
+                    val list = mutableListOf<String>()
                     for (j in 0 until trigsArr.length()) {
                         val t = trigsArr.optString(j, "").trim()
-                        if (t.isNotEmpty()) trigs.add(t)
+                        if (t.isNotEmpty()) list.add(t)
                     }
-                    customMap[id] = trigs
+                    list
+                } else null
+
+                val enabled = if (obj.has("enabled")) obj.optBoolean("enabled") else null
+                val requireConfirm = if (obj.has("requireConfirmation")) obj.optBoolean("requireConfirmation") else null
+
+                if (id.isNotBlank()) {
+                    customMap[id] = StoredConfig(trigs, enabled, requireConfirm)
                 }
             }
             defaultVoiceCommands.map { def ->
-                if (customMap.containsKey(def.id)) {
-                    def.copy(triggers = customMap[def.id] ?: def.triggers)
+                val stored = customMap[def.id]
+                if (stored != null) {
+                    def.copy(
+                        triggers = stored.triggers ?: def.triggers,
+                        enabled = stored.enabled ?: def.enabled,
+                        requireConfirmation = stored.requireConfirmation ?: def.requireConfirmation
+                    )
                 } else {
                     def
                 }
@@ -187,21 +241,24 @@ object LanguageTools {
             val trigsArr = org.json.JSONArray()
             cmd.triggers.forEach { trigsArr.put(it) }
             obj.put("triggers", trigsArr)
+            obj.put("enabled", cmd.enabled)
+            obj.put("requireConfirmation", cmd.requireConfirmation)
             array.put(obj)
         }
         return array.toString()
     }
 
-    fun checkVoiceCommand(
+    fun checkVoiceCommandMatch(
         rawUtterance: String,
         commands: List<VoiceCommandConfig> = defaultVoiceCommands
-    ): VoiceCommandResult {
+    ): Pair<VoiceCommandResult, VoiceCommandConfig>? {
         val trimmed = rawUtterance.trim().lowercase(Locale.ROOT)
         for (cmd in commands) {
+            if (!cmd.enabled) continue
             for (trig in cmd.triggers) {
                 val normTrig = trig.trim().lowercase(Locale.ROOT)
                 if (trimmed == normTrig) {
-                    return when (cmd.id) {
+                    val result = when (cmd.id) {
                         "new_line" -> VoiceCommandResult.NewLine
                         "new_paragraph" -> VoiceCommandResult.NewParagraph
                         "delete_word" -> VoiceCommandResult.DeleteLastWord
@@ -221,10 +278,20 @@ object LanguageTools {
                         "stop_listening" -> VoiceCommandResult.StopListening
                         else -> VoiceCommandResult.None
                     }
+                    if (result !is VoiceCommandResult.None) {
+                        return Pair(result, cmd)
+                    }
                 }
             }
         }
-        return VoiceCommandResult.None
+        return null
+    }
+
+    fun checkVoiceCommand(
+        rawUtterance: String,
+        commands: List<VoiceCommandConfig> = defaultVoiceCommands
+    ): VoiceCommandResult {
+        return checkVoiceCommandMatch(rawUtterance, commands)?.first ?: VoiceCommandResult.None
     }
 
     fun isSensitiveCommand(cmd: VoiceCommandResult): Boolean {

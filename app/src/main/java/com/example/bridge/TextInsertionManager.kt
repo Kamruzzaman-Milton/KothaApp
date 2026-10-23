@@ -65,8 +65,9 @@ class TextInsertionManager(
         // 1. Check Voice Commands if enabled
         if (settings.voiceCommandsEnabled) {
             val commands = LanguageTools.commandsFromJson(settings.voiceCommandsJson)
-            val cmd = LanguageTools.checkVoiceCommand(trimmed, commands)
-            if (cmd !is LanguageTools.VoiceCommandResult.None) {
+            val match = LanguageTools.checkVoiceCommandMatch(trimmed, commands)
+            if (match != null) {
+                val (cmd, config) = match
                 val executeAction = {
                     executeCommandAction(cmd, settings, onVoiceCommand)
                     _liveCaptionText.value = ""
@@ -75,9 +76,8 @@ class TextInsertionManager(
                     insertFormattedFinal(trimmed, settings)
                 }
 
-                if (settings.confirmSensitiveCommands && LanguageTools.isSensitiveCommand(cmd) && onConfirmCommand != null) {
-                    val actionName = LanguageTools.getCommandName(cmd)
-                    onConfirmCommand.invoke(actionName, trimmed, executeAction, insertAsText)
+                if (config.requireConfirmation && onConfirmCommand != null) {
+                    onConfirmCommand.invoke(config.actionName, trimmed, executeAction, insertAsText)
                     _liveCaptionText.value = ""
                     return
                 }
