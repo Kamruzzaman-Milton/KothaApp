@@ -32,6 +32,7 @@ sealed class DictationState {
     object Starting : DictationState()
     object Listening : DictationState()
     object Processing : DictationState()
+    object Restarting : DictationState()
     data class WaitingRestart(val remainingMs: Long, val totalMs: Long) : DictationState()
     object Paused : DictationState()
     data class Error(val code: Int, val message: String) : DictationState()
@@ -74,6 +75,63 @@ class SpeechEngineManager(
     private var idleAutoStopJob: Job? = null
     private var sessionTimerJob: Job? = null
 
+    private var currentPartialText = ""
+    private var lastPartialCommitted = false
+    private var lastCommittedText = ""
+    private var startTimeoutRunnable: Runnable? = null
+
+    private fun cancelStartTimeout() {
+        startTimeoutRunnable?.let { handler.removeCallbacks(it) }
+        startTimeoutRunnable = null
+    }
+
+    private fun armStartTimeout(gen: Long) {
+        cancelStartTimeout()
+        startTimeoutRunnable = Runnable {
+            if (_dictationState.value is DictationState.Starting && isSessionActive && gen == sessionGeneration) {
+                DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recognizer stuck in Starting; restarting (gen=$gen)")
+                destroyRecognizer()
+                scheduleRestart(delayMs = 100L, generation = gen)
+            }
+        }
+        handler.postDelayed(startTimeoutRunnable!!, 3500L)
+    }
+
+    private fun commitPendingPartial() {
+        val pending = currentPartialText.trim()
+        if (pending.isNotEmpty()) {
+            currentPartialText = ""
+            lastPartialCommitted = true
+            lastCommittedText = pending
+            markSpeech()
+            _utteranceCount.value++
+            onFinalText(pending)
+        }
+    }
+
+    private fun commitTextWithContinuationCheck(phrase: String) {
+        var textToCommit = phrase.trim()
+        currentPartialText = ""
+        if (textToCommit.isEmpty()) return
+
+        if (lastPartialCommitted && lastCommittedText.isNotEmpty()) {
+            if (textToCommit.equals(lastCommittedText, ignoreCase = true)) {
+                lastPartialCommitted = false
+                return
+            } else if (textToCommit.startsWith(lastCommittedText, ignoreCase = true)) {
+                textToCommit = textToCommit.substring(lastCommittedText.length).trimStart()
+            }
+        }
+
+        lastPartialCommitted = false
+        lastCommittedText = textToCommit
+        if (textToCommit.isNotEmpty()) {
+            markSpeech()
+            _utteranceCount.value++
+            onFinalText(textToCommit)
+        }
+    }
+
     private val _dictationState = MutableStateFlow<DictationState>(DictationState.Idle)
     val dictationState: StateFlow<DictationState> = _dictationState.asStateFlow()
 
@@ -91,7 +149,7 @@ class SpeechEngineManager(
             val gen = sessionGeneration
             if (!isSessionActive) return
 
-            // Keep volumes comfortably attenuated during active session to eliminate harsh restart beeps
+            cancelStartTimeout()
             _dictationState.value = DictationState.Listening
             consecutiveErrors = 0 // Reset error count on successful start
             resetIdleAutoStop()
@@ -100,6 +158,7 @@ class SpeechEngineManager(
 
         override fun onBeginningOfSpeech() {
             if (!isSessionActive) return
+            cancelStartTimeout()
             markSpeech()
             _dictationState.value = DictationState.Listening
             resetIdleAutoStop()
@@ -108,6 +167,7 @@ class SpeechEngineManager(
 
         override fun onRmsChanged(rmsdB: Float) {
             if (!isSessionActive) return
+            cancelStartTimeout()
             if (rmsdB > RMS_SPEECH_THRESHOLD_DB) {
                 markSpeech()
             }
@@ -121,6 +181,9 @@ class SpeechEngineManager(
 
         override fun onEndOfSpeech() {
             if (!isSessionActive) return
+            // CRITICAL: DO NOT restart or cancel here!
+            // The engine is processing audio and will fire onResults or onError within 50-200ms.
+            // Calling stopListening() or cancel() here will discard final words.
             val s = settingsRepository.cachedSettings
             if (silenceElapsed() >= s.silenceCompleteMs) {
                 _dictationState.value = DictationState.Processing
@@ -133,6 +196,7 @@ class SpeechEngineManager(
 
         override fun onError(error: Int) {
             val gen = sessionGeneration
+            cancelStartTimeout()
             _smoothedRms.value = 0f
             if (!isSessionActive) {
                 beepSuppressor.restoreSessionVolumes(delayed = true)
@@ -144,6 +208,7 @@ class SpeechEngineManager(
 
         override fun onResults(results: Bundle?) {
             val gen = sessionGeneration
+            cancelStartTimeout()
             _smoothedRms.value = 0f
             if (!isSessionActive) {
                 beepSuppressor.restoreSessionVolumes(delayed = true)
@@ -161,12 +226,7 @@ class SpeechEngineManager(
                 "Final result: [${resultText.take(40)}...] (gen=$gen)"
             )
 
-            // Increment utterance count only if non-empty
-            if (resultText.isNotBlank()) {
-                markSpeech()
-                _utteranceCount.value++
-                onFinalText(resultText)
-            }
+            commitTextWithContinuationCheck(resultText)
 
             if (isSessionActive && gen == sessionGeneration) {
                 onEngineSegmentEnded(gen)
@@ -177,12 +237,14 @@ class SpeechEngineManager(
 
         override fun onPartialResults(partialResults: Bundle?) {
             if (!isSessionActive) return
+            cancelStartTimeout()
             resetIdleAutoStop() // User is speaking, prevent idle auto-stop
 
             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             val partial = matches?.firstOrNull() ?: ""
             if (partial.isNotBlank()) {
                 markSpeech()
+                currentPartialText = partial
                 onPartialText(partial)
             }
         }
@@ -234,6 +296,7 @@ class SpeechEngineManager(
         restartJob?.cancel()
         idleAutoStopJob?.cancel()
         sessionTimerJob?.cancel()
+        cancelStartTimeout()
 
         runOnMainThread {
             try {
@@ -248,6 +311,7 @@ class SpeechEngineManager(
             beepSuppressor.restoreSessionVolumes(delayed = true)
             _dictationState.value = DictationState.Idle
             _smoothedRms.value = 0f
+            currentPartialText = ""
         }
         DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session stopped (invalidated up to gen=$stopGen)")
     }
@@ -258,6 +322,7 @@ class SpeechEngineManager(
         restartJob?.cancel()
         idleAutoStopJob?.cancel()
         sessionTimerJob?.cancel()
+        cancelStartTimeout()
 
         runOnMainThread {
             try {
@@ -266,6 +331,7 @@ class SpeechEngineManager(
             beepSuppressor.restoreSessionVolumes(delayed = true)
             _dictationState.value = DictationState.Paused
             _smoothedRms.value = 0f
+            currentPartialText = ""
         }
         DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Session paused")
     }
@@ -318,6 +384,7 @@ class SpeechEngineManager(
                     recognizer.cancel()
                 } catch (ignored: Exception) {}
 
+                armStartTimeout(generation)
                 recognizer.startListening(intent)
             } catch (e: Exception) {
                 DiagnosticsLog.log(
@@ -368,6 +435,7 @@ class SpeechEngineManager(
 
     private fun handleRecognizerError(errorCode: Int, generation: Long) {
         if (!isSessionActive || generation != sessionGeneration) return
+        cancelStartTimeout()
 
         val errorMessage = getErrorDescription(errorCode)
         DiagnosticsLog.log(
@@ -379,10 +447,13 @@ class SpeechEngineManager(
         val isPauseError = (errorCode == SpeechRecognizer.ERROR_NO_MATCH || errorCode == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
 
         if (isPauseError && isSessionActive) {
-            // Conversational pause: evaluate silence window before stopping or restarting
+            commitPendingPartial()
+            _dictationState.value = DictationState.Restarting
             onEngineSegmentEnded(generation)
             return
         }
+
+        commitPendingPartial()
 
         consecutiveErrors++
         if (consecutiveErrors >= settings.maxConsecutiveFailures) {
@@ -403,8 +474,9 @@ class SpeechEngineManager(
                     DiagnosticsLog.log(DiagnosticsLog.Category.RECOGNIZER, "Recreating recognizer after $consecutiveErrors critical failures")
                     destroyRecognizer()
                 }
+                _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
-                    scheduleRestart(delayMs = settings.errorBackoffMs * consecutiveErrors, generation = generation)
+                    scheduleRestart(delayMs = (settings.errorBackoffMs * consecutiveErrors).coerceAtLeast(150L), generation = generation)
                 }
             }
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
@@ -418,11 +490,13 @@ class SpeechEngineManager(
             SpeechRecognizer.ERROR_NETWORK,
             SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
             SpeechRecognizer.ERROR_SERVER -> {
+                _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
                     scheduleRestart(delayMs = settings.errorBackoffMs * consecutiveErrors, generation = generation)
                 }
             }
             else -> {
+                _dictationState.value = DictationState.Restarting
                 if (isSessionActive && generation == sessionGeneration) {
                     scheduleRestart(delayMs = settings.errorBackoffMs, generation = generation)
                 }
@@ -435,14 +509,12 @@ class SpeechEngineManager(
         val s = settingsRepository.cachedSettings
         val elapsed = silenceElapsed()
         if (elapsed < s.silenceCompleteMs) {
-            // User is still inside their thinking window: silently reopen the mic.
+            // User is still inside their thinking window: reopen the mic.
             DiagnosticsLog.log(
                 DiagnosticsLog.Category.RECOGNIZER,
                 "Silent reopen (silence=${elapsed}ms of ${s.silenceCompleteMs}ms) (gen=$gen)"
             )
-            if (_dictationState.value !is DictationState.Listening) {
-                _dictationState.value = DictationState.Listening
-            }
+            _dictationState.value = DictationState.Restarting
             restartJob?.cancel()
             restartJob = scope.launch {
                 delay(MIN_REOPEN_DELAY_MS) // min gap prevents tight loops and ERROR_RECOGNIZER_BUSY
@@ -456,6 +528,7 @@ class SpeechEngineManager(
                 DiagnosticsLog.Category.RECOGNIZER,
                 "Silence window complete (silence=${elapsed}ms >= ${s.silenceCompleteMs}ms) (gen=$gen)"
             )
+            _dictationState.value = DictationState.Restarting
             scheduleRestart(delayMs = getRestartDelay(), generation = gen)
         }
     }
@@ -481,6 +554,7 @@ class SpeechEngineManager(
                 }
             }
         } else {
+            _dictationState.value = DictationState.Restarting
             restartJob = scope.launch {
                 delay(delayMs)
                 if (isSessionActive && generation == sessionGeneration) {
@@ -527,16 +601,15 @@ class SpeechEngineManager(
                 putExtra("android.speech.extra.ENABLE_FORMATTING", true)
             }
 
-            // Silence timing & dictation extras: responsive pause tolerance
-            val silenceMs = settings.silenceCompleteMs.coerceIn(800L, 8000L)
+            // Silence timing & dictation extras: extended 30s in continuous mode to prevent premature OS recognizer timeouts!
+            val silenceMs = if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else settings.silenceCompleteMs.coerceIn(800L, 8000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, silenceMs.coerceAtLeast(1500L))
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else silenceMs.coerceAtLeast(1500L))
 
-            // Extra keys supported across Android & Google Speech Services for prolonged thinking pauses
             putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", silenceMs)
             putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", silenceMs)
-            putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", silenceMs.coerceAtLeast(1500L))
+            putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else silenceMs.coerceAtLeast(1500L))
             putExtra("android.speech.extra.DICTATION_MODE", true)
         }
         return intent

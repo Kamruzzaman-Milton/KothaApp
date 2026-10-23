@@ -117,9 +117,7 @@ class DictationService : Service() {
         // Observe Caption Text (live streaming)
         serviceScope.launch {
             textInsertionManager.liveCaptionText.collectLatest { caption ->
-                if (caption.isNotBlank()) {
-                    orbWindowManager.updateCaption(caption, isStreaming = true)
-                }
+                orbWindowManager.updateCaption(caption, isStreaming = true)
             }
         }
 
@@ -148,6 +146,13 @@ class DictationService : Service() {
 
                 val isEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
                 orbWindowManager.updateVisibility(visible, isEditable, settings)
+
+                // Voice typing lifecycle: in KEYBOARD_VISIBLE mode, automatically shut down dictation when keyboard closes
+                if (!visible && settings.visibilityRule == VisibilityRule.KEYBOARD_VISIBLE) {
+                    if (speechEngineManager.dictationState.value !is DictationState.Idle) {
+                        speechEngineManager.stopSession()
+                    }
+                }
             }
         }
 
@@ -220,7 +225,7 @@ class DictationService : Service() {
         }
 
         val currentState = speechEngineManager.dictationState.value
-        if (currentState is DictationState.Listening || currentState is DictationState.Starting || currentState is DictationState.WaitingRestart) {
+        if (currentState is DictationState.Listening || currentState is DictationState.Starting || currentState is DictationState.WaitingRestart || currentState is DictationState.Restarting) {
             speechEngineManager.stopSession()
         } else if (currentState is DictationState.Paused) {
             speechEngineManager.resumeSession()
@@ -340,6 +345,7 @@ class DictationService : Service() {
                 builder.addAction(R.drawable.ic_notification, getString(R.string.notification_action_stop), pStop)
                 builder.addAction(R.drawable.ic_notification, getString(R.string.notification_action_pause), pPause)
             }
+            is DictationState.Restarting,
             is DictationState.WaitingRestart -> {
                 builder.setContentTitle(getString(R.string.notification_title_waiting))
                 builder.setContentText("Kotha • কথা (${settingsRepository.cachedSettings.primaryLanguage})")

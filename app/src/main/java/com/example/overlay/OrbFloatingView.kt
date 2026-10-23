@@ -160,6 +160,7 @@ class OrbFloatingView(
             !isBridgeConnected -> 0xFF8C857A.toInt() // Bridge down / disconnected
             dictationState is DictationState.Listening -> settings.listeningColor.toInt()
             dictationState is DictationState.WaitingRestart -> settings.waitingColor.toInt()
+            dictationState is DictationState.Restarting -> 0xFF2196F3.toInt()
             dictationState is DictationState.Processing -> settings.processingColor.toInt()
             dictationState is DictationState.Error -> settings.errorColor.toInt()
             dictationState is DictationState.Paused -> 0xFF8C857A.toInt()
@@ -246,6 +247,12 @@ class OrbFloatingView(
                 val sweep = ((state.remainingMs.toFloat() / state.totalMs.coerceAtLeast(1)) * 360f)
                 rectF.set(cx - outerR, cy - outerR, cx + outerR, cy + outerR)
                 canvas.drawArc(rectF, -90f, sweep, false, ringPaint)
+            }
+
+            is DictationState.Restarting -> {
+                ringPaint.color = 0xFF2196F3.toInt()
+                rectF.set(cx - outerR, cy - outerR, cx + outerR, cy + outerR)
+                canvas.drawArc(rectF, rotateAngle, 140f, false, ringPaint)
             }
 
             is DictationState.Processing -> {

@@ -142,6 +142,9 @@ class OrbWindowManager(
     private fun setupCaptionBubble(settings: KothaSettings) {
         if (captionBubbleView != null) return
         val capView = CaptionBubbleOverlay(context, settings)
+        capView.onLayoutChanged = {
+            updateCaptionPosition()
+        }
         captionBubbleView = capView
 
         val capParams = WindowManager.LayoutParams(
@@ -259,6 +262,8 @@ class OrbWindowManager(
 
     fun updateState(state: DictationState) {
         floatingView?.dictationState = state
+        captionBubbleView?.setDictationState(state)
+        updateCaptionPosition()
     }
 
     fun updateAudioLevel(level: Float) {
@@ -273,12 +278,16 @@ class OrbWindowManager(
         val settings = settingsRepository.cachedSettings
         floatingView?.captionText = caption
 
-        if (!settings.showLiveCaptionBubble || caption.isBlank()) {
-            captionBubbleView?.setCaptionContent("", false)
+        if (!settings.showLiveCaptionBubble) {
+            captionBubbleView?.clearAll()
             return
         }
 
-        captionBubbleView?.setCaptionContent(caption, isStreaming)
+        if (isStreaming) {
+            captionBubbleView?.setPartialText(caption)
+        } else {
+            captionBubbleView?.setFinalUtterance(caption)
+        }
         updateCaptionPosition()
     }
 
@@ -305,15 +314,11 @@ class OrbWindowManager(
         val view = floatingView ?: return
         if (!isViewAttached) return
 
+        // Fixed screen position: vertical position must not shift upward or downward automatically
         if (visible && settings.dockToEdgeOnKeyboard) {
             params.x = if (params.x > screenWidth / 2) screenWidth - (view.width / 2) else -(view.width / 2)
             try { windowManager.updateViewLayout(view, params) } catch (ignored: Exception) {}
-        } else if (visible && keyboardHeightPx > 0) {
-            val keyboardTop = screenHeight - keyboardHeightPx
-            if (params.y + view.height > keyboardTop) {
-                params.y = keyboardTop - view.height - 20
-                try { windowManager.updateViewLayout(view, params) } catch (ignored: Exception) {}
-            }
+            updateCaptionPosition()
         }
     }
 

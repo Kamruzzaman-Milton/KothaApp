@@ -6,17 +6,16 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
-import android.util.AttributeSet
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.graphics.ColorUtils
+import com.example.engine.DictationState
 import com.example.settings.CaptionBubbleSize
 import com.example.settings.CaptionBubbleStyle
 import com.example.settings.KothaSettings
@@ -48,129 +47,206 @@ class CaptionBubbleOverlay(
     }
 
     private val cardRect = RectF()
-    private val cornerRadiusDp = 14f
+    private val cornerRadiusDp = 18f
 
-    var text: String = ""
-        set(value) {
-            if (field != value) {
-                field = value
-                rebuildLayout()
-                postInvalidate()
-            }
-        }
+    var onLayoutChanged: (() -> Unit)? = null
 
-    var isLiveStreaming: Boolean = true
-        set(value) {
-            if (field != value) {
-                field = value
-                postInvalidate()
-            }
-        }
+    var dictationState: DictationState = DictationState.Idle
+        private set
+
+    var partialText: String = ""
+        private set
+
+    var finalUtterance: String = ""
+        private set
 
     private var staticLayout: StaticLayout? = null
     private var fadeAnimator: ValueAnimator? = null
-    private val hideRunnable = Runnable { startFadeOut() }
+    private val clearFinalRunnable = Runnable {
+        finalUtterance = ""
+        rebuildLayout()
+        requestLayout()
+        postInvalidate()
+        onLayoutChanged?.invoke()
+    }
+
+    // Bipping dot pulsing animation: 0.35f <-> 1.0f in 650ms reverse loop
+    private var dotPulseAlpha = 1.0f
+    private val dotPulseAnimator = ValueAnimator.ofFloat(0.35f, 1.0f).apply {
+        duration = 650L
+        repeatMode = ValueAnimator.REVERSE
+        repeatCount = ValueAnimator.INFINITE
+        interpolator = AccelerateDecelerateInterpolator()
+        addUpdateListener {
+            dotPulseAlpha = it.animatedValue as Float
+            postInvalidate()
+        }
+    }
 
     init {
+        visibility = INVISIBLE
+        alpha = 0f
         updateStyles()
+        dotPulseAnimator.start()
+    }
+
+    override fun onDetachedFromWindow() {
+        dotPulseAnimator.cancel()
+        fadeAnimator?.cancel()
+        removeCallbacks(clearFinalRunnable)
+        super.onDetachedFromWindow()
     }
 
     fun updateStyles() {
         val density = resources.displayMetrics.density
 
-        // 1. Text size based on CaptionBubbleSize
         val spSize = when (settings.captionBubbleSize) {
-            CaptionBubbleSize.COMPACT -> 13f
-            CaptionBubbleSize.MEDIUM -> 16f
-            CaptionBubbleSize.LARGE -> 19f
-            CaptionBubbleSize.EXTRA_LARGE -> 22f
+            CaptionBubbleSize.COMPACT -> 14f
+            CaptionBubbleSize.MEDIUM -> 15f
+            CaptionBubbleSize.LARGE -> 18f
+            CaptionBubbleSize.EXTRA_LARGE -> 20f
         }
         textPaint.textSize = spSize * density
-
-        // 2. Background and Border based on CaptionBubbleStyle
-        val accentColor = settings.listeningColor.toInt()
-        when (settings.captionBubbleStyle) {
-            CaptionBubbleStyle.TRANSLUCENT_DARK -> {
-                bgPaint.color = 0xDD12100E.toInt()
-                borderPaint.color = 0x44ECE6DA.toInt()
-                borderPaint.strokeWidth = 1.5f * density
-            }
-            CaptionBubbleStyle.SOLID_AMOLED -> {
-                bgPaint.color = 0xFF000000.toInt()
-                borderPaint.color = 0x66ECE6DA.toInt()
-                borderPaint.strokeWidth = 2f * density
-            }
-            CaptionBubbleStyle.ACCENT_THEMED -> {
-                bgPaint.color = ColorUtils.blendARGB(0xDD12100E.toInt(), accentColor, 0.20f)
-                borderPaint.color = accentColor
-                borderPaint.strokeWidth = 2f * density
-            }
-        }
-
-        dotPaint.color = if (isLiveStreaming) accentColor else 0xFF45A596.toInt()
+        borderPaint.strokeWidth = 1.5f * density
 
         rebuildLayout()
         requestLayout()
         postInvalidate()
     }
 
-    fun setCaptionContent(newText: String, streaming: Boolean) {
-        removeCallbacks(hideRunnable)
-        fadeAnimator?.cancel()
-        alpha = 1.0f
+    fun setDictationState(state: DictationState) {
+        val previousState = dictationState
+        dictationState = state
 
-        val trimmed = newText.trim()
-        isLiveStreaming = streaming
-
-        if (trimmed.isEmpty()) {
-            text = ""
-            visibility = INVISIBLE
+        if (state !is DictationState.Idle) {
+            fadeAnimator?.cancel()
+            alpha = 1.0f
+            visibility = VISIBLE
+        } else {
+            // Dictation ended: fade out pill
+            partialText = ""
+            finalUtterance = ""
+            removeCallbacks(clearFinalRunnable)
+            startFadeOut()
             return
         }
 
-        text = trimmed
-        visibility = VISIBLE
+        rebuildLayout()
+        requestLayout()
+        postInvalidate()
+        onLayoutChanged?.invoke()
+    }
 
-        if (!streaming) {
-            // Speech committed: linger for configured duration before fade out
-            postDelayed(hideRunnable, settings.captionLingerDurationMs)
+    fun setPartialText(text: String) {
+        removeCallbacks(clearFinalRunnable)
+        val trimmed = text.trim()
+        if (partialText != trimmed) {
+            partialText = trimmed
+            if (trimmed.isNotBlank()) {
+                finalUtterance = ""
+            }
+            if (dictationState !is DictationState.Idle) {
+                fadeAnimator?.cancel()
+                alpha = 1.0f
+                visibility = VISIBLE
+            }
+            rebuildLayout()
+            requestLayout()
+            postInvalidate()
+            onLayoutChanged?.invoke()
         }
+    }
+
+    fun setFinalUtterance(text: String) {
+        removeCallbacks(clearFinalRunnable)
+        partialText = ""
+        val trimmed = text.trim()
+        if (trimmed.isNotBlank()) {
+            finalUtterance = trimmed
+            if (dictationState !is DictationState.Idle) {
+                fadeAnimator?.cancel()
+                alpha = 1.0f
+                visibility = VISIBLE
+            }
+            rebuildLayout()
+            requestLayout()
+            postInvalidate()
+            onLayoutChanged?.invoke()
+
+            // Keep final committed text visible briefly before returning to gap prompt
+            val lingerMs = settings.captionLingerDurationMs.coerceIn(800L, 4000L)
+            postDelayed(clearFinalRunnable, lingerMs)
+        }
+    }
+
+    fun clearAll() {
+        removeCallbacks(clearFinalRunnable)
+        partialText = ""
+        finalUtterance = ""
+        visibility = INVISIBLE
+        alpha = 0f
     }
 
     private fun startFadeOut() {
         fadeAnimator?.cancel()
         fadeAnimator = ValueAnimator.ofFloat(alpha, 0f).apply {
-            duration = 350L
+            duration = 250L
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener {
                 val a = it.animatedValue as Float
                 alpha = a
-                if (a <= 0.01f) {
+                if (a <= 0.02f) {
                     visibility = INVISIBLE
-                    text = ""
+                    rebuildLayout()
                 }
             }
         }
         fadeAnimator?.start()
     }
 
+    private fun getDisplayText(): Pair<String, Boolean> {
+        // Returns Pair(text, isSpokenText)
+        return when {
+            partialText.isNotBlank() -> Pair(partialText, true)
+            finalUtterance.isNotBlank() -> Pair(finalUtterance, true)
+            dictationState is DictationState.Listening -> Pair("Listening... speak now", false)
+            dictationState is DictationState.Starting -> Pair("Starting engine...", false)
+            dictationState is DictationState.Restarting -> Pair("Restarting... hold on", false)
+            dictationState is DictationState.WaitingRestart -> Pair("Restarting... hold on", false)
+            dictationState is DictationState.Processing -> Pair("Processing speech...", false)
+            dictationState is DictationState.Paused -> Pair("Dictation paused", false)
+            dictationState is DictationState.Error -> Pair("Reconnecting...", false)
+            else -> Pair("Listening...", false)
+        }
+    }
+
     private fun rebuildLayout() {
-        if (text.isEmpty()) {
+        if (dictationState is DictationState.Idle && visibility != VISIBLE) {
             staticLayout = null
             return
+        }
+
+        val (displayStr, isSpoken) = getDisplayText()
+
+        if (isSpoken) {
+            textPaint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            textPaint.color = 0xFFFFFFFF.toInt()
+        } else {
+            textPaint.typeface = Typeface.create("sans-serif", Typeface.ITALIC)
+            textPaint.color = 0xDDECE6DA.toInt()
         }
 
         val density = resources.displayMetrics.density
         val screenWidth = resources.displayMetrics.widthPixels
         val maxAvailableWidth = (screenWidth - (48 * density).toInt()).coerceAtLeast(180)
-        val maxCardWidth = min(maxAvailableWidth, (340 * density).toInt())
-        val horizontalPad = (32 * density).toInt()
-        val textWidth = max(60, maxCardWidth - horizontalPad)
+        val maxCardWidth = min(maxAvailableWidth, (360 * density).toInt())
+        val horizontalPad = (48 * density).toInt() // Pad + Dot + DotGap
+        val textWidth = max((80 * density).toInt(), maxCardWidth - horizontalPad)
 
-        val maxLines = settings.captionMaxLines.coerceIn(1, 3)
+        val maxLines = if (isSpoken) settings.captionMaxLines.coerceIn(2, 4) else 2
 
         staticLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            StaticLayout.Builder.obtain(text, 0, text.length, textPaint, textWidth)
+            StaticLayout.Builder.obtain(displayStr, 0, displayStr.length, textPaint, textWidth)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setMaxLines(maxLines)
                 .setEllipsize(android.text.TextUtils.TruncateAt.END)
@@ -178,7 +254,7 @@ class CaptionBubbleOverlay(
         } else {
             @Suppress("DEPRECATION")
             StaticLayout(
-                text,
+                displayStr,
                 textPaint,
                 textWidth,
                 Layout.Alignment.ALIGN_NORMAL,
@@ -192,23 +268,26 @@ class CaptionBubbleOverlay(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val density = resources.displayMetrics.density
         val layout = staticLayout
-        if (layout == null || text.isEmpty()) {
+        if (layout == null || (dictationState is DictationState.Idle && visibility != VISIBLE)) {
             setMeasuredDimension(0, 0)
             return
         }
 
-        val padX = (16 * density)
+        val padX = (14 * density)
         val padY = (10 * density)
-        val dotRadius = (4 * density)
-        val dotGap = (8 * density)
+        val dotRadius = (5 * density) // 10dp dot
+        val dotGap = (10 * density)
 
         val contentWidth = layout.width.toFloat().coerceAtMost(maxLineWidth(layout))
         val totalWidth = contentWidth + padX * 2 + dotRadius * 2 + dotGap
         val totalHeight = layout.height + padY * 2
 
+        val minWidth = (140 * density).toInt()
+        val minHeight = (38 * density).toInt()
+
         setMeasuredDimension(
-            totalWidth.toInt().coerceAtLeast((80 * density).toInt()),
-            totalHeight.toInt().coerceAtLeast((36 * density).toInt())
+            totalWidth.toInt().coerceAtLeast(minWidth),
+            totalHeight.toInt().coerceAtLeast(minHeight)
         )
     }
 
@@ -223,29 +302,63 @@ class CaptionBubbleOverlay(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val layout = staticLayout ?: return
-        if (text.isEmpty()) return
+        if (dictationState is DictationState.Idle && visibility != VISIBLE) return
 
         val density = resources.displayMetrics.density
         val cornerRadius = cornerRadiusDp * density
 
-        cardRect.set(1f, 1f, width.toFloat() - 1f, height.toFloat() - 1f)
+        cardRect.set(1.5f, 1.5f, width.toFloat() - 1.5f, height.toFloat() - 1.5f)
 
-        // Draw card background
+        val primaryColor = settings.listeningColor.toInt()
+        val hasPartial = partialText.isNotBlank()
+
+        // 1. Dynamic border color based on dictation state & activity
+        val borderColor = when {
+            hasPartial || dictationState is DictationState.Listening -> ColorUtils.setAlphaComponent(primaryColor, 150)
+            dictationState is DictationState.Starting || dictationState is DictationState.Restarting || dictationState is DictationState.WaitingRestart -> ColorUtils.setAlphaComponent(0xFF2196F3.toInt(), 160)
+            dictationState is DictationState.Paused -> ColorUtils.setAlphaComponent(0xFFFFB300.toInt(), 160)
+            dictationState is DictationState.Error -> ColorUtils.setAlphaComponent(0xFFE53935.toInt(), 160)
+            else -> 0x44ECE6DA.toInt()
+        }
+        borderPaint.color = borderColor
+
+        // 2. Card background: dark surface variant with 95% opacity
+        when (settings.captionBubbleStyle) {
+            CaptionBubbleStyle.TRANSLUCENT_DARK -> {
+                bgPaint.color = 0xF21C1A18.toInt()
+            }
+            CaptionBubbleStyle.SOLID_AMOLED -> {
+                bgPaint.color = 0xFF000000.toInt()
+            }
+            CaptionBubbleStyle.ACCENT_THEMED -> {
+                bgPaint.color = ColorUtils.blendARGB(0xF21C1A18.toInt(), primaryColor, 0.20f)
+            }
+        }
+
+        // Draw card background & border pill
         canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
-        // Draw card border
         canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, borderPaint)
 
-        // Draw dot indicator (pulsing / live accent if streaming, emerald if final)
+        // 3. Bipping Status Dot Indicator
         val padX = 14f * density
-        val dotRadius = 3.5f * density
+        val dotRadius = 5f * density // 10dp diameter
         val dotCx = padX + dotRadius
         val dotCy = height / 2f
-        val accentColor = settings.listeningColor.toInt()
-        dotPaint.color = if (isLiveStreaming) accentColor else 0xFF45A596.toInt()
+
+        val (dotColor, dotAlpha) = when {
+            hasPartial -> primaryColor to 1.0f
+            dictationState is DictationState.Listening -> primaryColor to dotPulseAlpha
+            dictationState is DictationState.Starting || dictationState is DictationState.Restarting || dictationState is DictationState.WaitingRestart -> 0xFF2196F3.toInt() to dotPulseAlpha
+            dictationState is DictationState.Paused -> 0xFFFFB300.toInt() to 1.0f
+            dictationState is DictationState.Error -> 0xFFE53935.toInt() to 1.0f
+            else -> 0xFF8C857A.toInt() to 0.4f
+        }
+
+        dotPaint.color = ColorUtils.setAlphaComponent(dotColor, (dotAlpha * 255).toInt().coerceIn(0, 255))
         canvas.drawCircle(dotCx, dotCy, dotRadius, dotPaint)
 
-        // Draw StaticLayout text
-        val textStartX = dotCx + dotRadius + (8f * density)
+        // 4. Draw Live Text or Gap Prompt
+        val textStartX = dotCx + dotRadius + (10f * density)
         val textStartY = (height - layout.height) / 2f
         canvas.save()
         canvas.translate(textStartX, textStartY)
