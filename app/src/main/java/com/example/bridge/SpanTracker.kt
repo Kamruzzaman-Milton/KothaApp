@@ -148,7 +148,7 @@ class SpanTracker {
         autoLeadingSpace: Boolean = true,
         addTrailingSpace: Boolean = true
     ): InsertionResult {
-        val cleanFinalText = if (!addTrailingSpace) finalText.trimEnd() else finalText
+        val cleanFinalText = if (!addTrailingSpace) finalText.trimEnd(' ') else finalText
 
         // Check leading space: if active live span already established leading space, reuse it.
         // Otherwise determine freshly against text before cursor.
@@ -157,14 +157,14 @@ class SpanTracker {
         val textWithLeading = if (needsLeading && !cleanFinalText.startsWith(" ")) " $cleanFinalText" else cleanFinalText
 
         // Determine trailing separator based on user setting
-        val trailing = if (addTrailingSpace) {
+        val trailing = if (addTrailingSpace && !cleanFinalText.endsWith("\n")) {
             if (separator.isNotEmpty()) separator else " "
         } else {
             ""
         }
 
         val fullCommittedPiece = if (!addTrailingSpace) {
-            textWithLeading.trimEnd()
+            textWithLeading.trimEnd(' ')
         } else if (textWithLeading.endsWith(" ") && trailing == " ") {
             textWithLeading
         } else {

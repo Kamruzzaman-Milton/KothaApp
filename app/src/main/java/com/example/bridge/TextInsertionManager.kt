@@ -99,11 +99,32 @@ class TextInsertionManager(
         DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Executed voice command: $cmd")
         onVoiceCommand?.invoke(cmd)
         when (cmd) {
-            LanguageTools.VoiceCommandResult.NewLine -> insertTextInternal("\n", isFinal = true, settings = settings)
-            LanguageTools.VoiceCommandResult.NewParagraph -> insertTextInternal("\n\n", isFinal = true, settings = settings)
+            LanguageTools.VoiceCommandResult.NewLine -> {
+                spanTracker.reset()
+                val success = TextBridgeService.instance?.insertNewline(false) ?: false
+                if (!success) {
+                    insertTextInternal("\n", isFinal = true, settings = settings)
+                }
+                _lastInsertedUtterance.value = "\n"
+                _liveCaptionText.value = ""
+            }
+            LanguageTools.VoiceCommandResult.NewParagraph -> {
+                spanTracker.reset()
+                val success = TextBridgeService.instance?.insertNewline(true) ?: false
+                if (!success) {
+                    insertTextInternal("\n\n", isFinal = true, settings = settings)
+                }
+                _lastInsertedUtterance.value = "\n\n"
+                _liveCaptionText.value = ""
+            }
             LanguageTools.VoiceCommandResult.DeleteLastWord -> TextBridgeService.instance?.deleteLastWord()
             LanguageTools.VoiceCommandResult.DeleteLastSentence -> TextBridgeService.instance?.deleteLastSentence()
-            LanguageTools.VoiceCommandResult.ClearAll -> TextBridgeService.instance?.clearAll()
+            LanguageTools.VoiceCommandResult.ClearAll -> {
+                spanTracker.reset()
+                TextBridgeService.instance?.clearAll()
+                _liveCaptionText.value = ""
+                _lastInsertedUtterance.value = ""
+            }
             LanguageTools.VoiceCommandResult.Send -> TextBridgeService.instance?.applySend()
             LanguageTools.VoiceCommandResult.Undo -> performUndo()
             LanguageTools.VoiceCommandResult.AddComma -> insertTextInternal(", ", isFinal = true, settings = settings)

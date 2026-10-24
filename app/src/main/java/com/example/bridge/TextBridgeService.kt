@@ -416,21 +416,143 @@ class TextBridgeService : AccessibilityService() {
         }
     }
 
+    fun insertNewline(doubleNewline: Boolean = false): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val (text, isHint) = extractActualFieldText(node)
+            val currentText = if (isHint) "" else text
+            val cursor = if (isHint || node.textSelectionStart < 0) currentText.length else node.textSelectionStart
+            val safeCursor = cursor.coerceIn(0, currentText.length)
+            val breakStr = if (doubleNewline) "\n\n" else "\n"
+            val before = currentText.substring(0, safeCursor)
+            val after = currentText.substring(safeCursor)
+            val newText = before + breakStr + after
+            val newCursor = safeCursor + breakStr.length
+
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+            }
+            val success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            if (success) {
+                applySelection(newCursor, newCursor)
+            }
+            refreshFocusedNode()
+            success
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "insertNewline failed: ${e.message}")
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
     fun clearAll(): Boolean {
-        return applySetText("")
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+            }
+            var success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            if (!success) {
+                // Fallback: select all and cut or replace
+                val len = node.text?.length ?: 0
+                if (len > 0) {
+                    val selArgs = Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, len)
+                    }
+                    node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
+                    node.performAction(AccessibilityNodeInfo.ACTION_CUT)
+                    success = true
+                }
+            }
+            applySelection(0, 0)
+            refreshFocusedNode()
+            success
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "clearAll failed: ${e.message}")
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
     }
 
     fun applySend(): Boolean {
+        // 1. Try to invoke IME Action on the focused input node directly (Android 11+ / API 30+)
+        var focusedNode: AccessibilityNodeInfo? = null
+        try {
+            focusedNode = findFocusedInputNode()
+            if (focusedNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val imeEnterAction = AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER
+                val supportsImeEnter = focusedNode.actionList.any { it.id == imeEnterAction.id }
+                if (supportsImeEnter) {
+                    val imeSuccess = focusedNode.performAction(imeEnterAction.id)
+                    if (imeSuccess) {
+                        DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: invoked ACTION_IME_ENTER on focused node")
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Proceed to keyword matching
+        }
+
+        // 2. Look for action button among sibling nodes of focused input (common in search bars & chat boxes)
+        try {
+            if (focusedNode != null) {
+                val parent = focusedNode.parent
+                if (parent != null) {
+                    val siblingKeywords = listOf("send", "submit", "search", "go", "done", "enter", "post", "পাঠাও", "সেন্ড", "খুঁজুন")
+                    val siblingBtn = findActionNode(parent, siblingKeywords)
+                    if (siblingBtn != null && siblingBtn != focusedNode) {
+                        val clicked = siblingBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        try { siblingBtn.recycle() } catch (ignored: Exception) {}
+                        try { parent.recycle() } catch (ignored: Exception) {}
+                        if (clicked) {
+                            DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: clicked sibling action button")
+                            return true
+                        }
+                    }
+                    try { parent.recycle() } catch (ignored: Exception) {}
+                }
+            }
+        } catch (e: Exception) {
+            // Proceed
+        } finally {
+            try { focusedNode?.recycle() } catch (ignored: Exception) {}
+        }
+
+        // 3. Search whole active window with broad action keywords across all apps
         val root = rootInActiveWindow ?: return false
         return try {
-            val sendKeywords = listOf("send", "পাঠাও", "প্রেরণ", "submit", "post", "enter", "send_button", "sendbutton")
+            val sendKeywords = listOf(
+                "send", "submit", "search", "go", "enter", "done", "post", "tweet", "comment", "reply", "ok",
+                "পাঠাও", "প্রেরণ", "সেন্ড", "সাবমিট", "অনুসন্ধান", "খুঁজুন", "ঠিক আছে", "পোস্ট",
+                "send_button", "sendbutton", "search_button", "btn_send", "btn_submit", "search_go_btn", "search_mag_icon"
+            )
             val found = findActionNode(root, sendKeywords)
             if (found != null) {
                 val clicked = found.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 try { found.recycle() } catch (ignored: Exception) {}
+                DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: clicked window action node (success=$clicked)")
                 clicked
             } else {
-                false
+                // 4. Fallback on API 30+: blindly try ACTION_IME_ENTER on focused node if available
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    var fn: AccessibilityNodeInfo? = null
+                    try {
+                        fn = findFocusedInputNode()
+                        fn?.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id) ?: false
+                    } catch (e: Exception) {
+                        false
+                    } finally {
+                        try { fn?.recycle() } catch (ignored: Exception) {}
+                    }
+                } else {
+                    false
+                }
             }
         } catch (e: Exception) {
             false

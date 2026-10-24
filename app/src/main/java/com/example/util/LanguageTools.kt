@@ -51,7 +51,7 @@ object LanguageTools {
             id = "new_line",
             actionName = "New Line (নতুন লাইন)",
             description = "Inserts a single line break",
-            triggers = listOf("নতুন লাইন", "পরের লাইন", "new line"),
+            triggers = listOf("নতুন লাইন", "পরের লাইন", "new line", "newline", "next line", "লাইন ব্রেক", "line break", "enter"),
             enabled = true,
             requireConfirmation = false
         ),
@@ -59,7 +59,7 @@ object LanguageTools {
             id = "new_paragraph",
             actionName = "New Paragraph (নতুন প্যারা)",
             description = "Inserts a paragraph break (double newline)",
-            triggers = listOf("নতুন প্যারা", "new paragraph"),
+            triggers = listOf("নতুন প্যারা", "new paragraph", "new para", "next paragraph", "paragraph", "নতুন অনুচ্ছেদ"),
             enabled = true,
             requireConfirmation = false
         ),
@@ -83,15 +83,15 @@ object LanguageTools {
             id = "clear_all",
             actionName = "Clear All (সব মুছো)",
             description = "Clears all text in the focused input field",
-            triggers = listOf("সব মুছো", "সব ক্লিয়ার করো", "clear all", "delete all"),
+            triggers = listOf("সব মুছো", "সব ক্লিয়ার করো", "clear all", "delete all", "সব মুছে ফেলো", "সব মুছুন", "মুছে ফেলো", "clear text", "delete everything"),
             enabled = true,
             requireConfirmation = true
         ),
         VoiceCommandConfig(
             id = "send",
             actionName = "Send / Submit (পাঠাও)",
-            description = "Clicks Send button in messaging / chat apps",
-            triggers = listOf("সেন্ড করো", "পাঠাও", "send message", "সাবমিট", "সেন্ড"),
+            description = "Submits or sends text across apps and messaging fields",
+            triggers = listOf("সেন্ড", "সেন্ড করো", "পাঠাও", "send", "submit", "send message", "send it", "সাবমিট", "পোস্ট", "জমা দাও", "search", "খুঁজুন"),
             enabled = true,
             requireConfirmation = false
         ),
@@ -248,15 +248,23 @@ object LanguageTools {
         return array.toString()
     }
 
+    fun cleanUtteranceForCommand(str: String): String {
+        return str.trim()
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[।.,?!;:…\\-_'\"]+"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     fun checkVoiceCommandMatch(
         rawUtterance: String,
         commands: List<VoiceCommandConfig> = defaultVoiceCommands
     ): Pair<VoiceCommandResult, VoiceCommandConfig>? {
-        val trimmed = rawUtterance.trim().lowercase(Locale.ROOT)
+        val trimmed = cleanUtteranceForCommand(rawUtterance)
         for (cmd in commands) {
             if (!cmd.enabled) continue
             for (trig in cmd.triggers) {
-                val normTrig = trig.trim().lowercase(Locale.ROOT)
+                val normTrig = cleanUtteranceForCommand(trig)
                 if (trimmed == normTrig) {
                     val result = when (cmd.id) {
                         "new_line" -> VoiceCommandResult.NewLine
