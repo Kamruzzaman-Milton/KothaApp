@@ -480,81 +480,45 @@ class TextBridgeService : AccessibilityService() {
     }
 
     fun applySend(): Boolean {
-        // 1. Try to invoke IME Action on the focused input node directly (Android 11+ / API 30+)
-        var focusedNode: AccessibilityNodeInfo? = null
-        try {
-            focusedNode = findFocusedInputNode()
-            if (focusedNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val imeEnterAction = AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER
-                val supportsImeEnter = focusedNode.actionList.any { it.id == imeEnterAction.id }
-                if (supportsImeEnter) {
-                    val imeSuccess = focusedNode.performAction(imeEnterAction.id)
-                    if (imeSuccess) {
-                        DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: invoked ACTION_IME_ENTER on focused node")
-                        return true
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Proceed to keyword matching
-        }
-
-        // 2. Look for action button among sibling nodes of focused input (common in search bars & chat boxes)
-        try {
-            if (focusedNode != null) {
-                val parent = focusedNode.parent
-                if (parent != null) {
-                    val siblingKeywords = listOf("send", "submit", "search", "go", "done", "enter", "post", "পাঠাও", "সেন্ড", "খুঁজুন")
-                    val siblingBtn = findActionNode(parent, siblingKeywords)
-                    if (siblingBtn != null && siblingBtn != focusedNode) {
-                        val clicked = siblingBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        try { siblingBtn.recycle() } catch (ignored: Exception) {}
-                        try { parent.recycle() } catch (ignored: Exception) {}
-                        if (clicked) {
-                            DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: clicked sibling action button")
-                            return true
-                        }
-                    }
-                    try { parent.recycle() } catch (ignored: Exception) {}
-                }
-            }
-        } catch (e: Exception) {
-            // Proceed
-        } finally {
-            try { focusedNode?.recycle() } catch (ignored: Exception) {}
-        }
-
-        // 3. Search whole active window with broad action keywords across all apps
         val root = rootInActiveWindow ?: return false
         return try {
+            // Priority 1: Search the window for a Send/Submit/Post button (Messaging & social apps)
             val sendKeywords = listOf(
-                "send", "submit", "search", "go", "enter", "done", "post", "tweet", "comment", "reply", "ok",
-                "পাঠাও", "প্রেরণ", "সেন্ড", "সাবমিট", "অনুসন্ধান", "খুঁজুন", "ঠিক আছে", "পোস্ট",
-                "send_button", "sendbutton", "search_button", "btn_send", "btn_submit", "search_go_btn", "search_mag_icon"
+                "send", "submit", "post", "done", "পাঠাও", "প্রেরণ", "সেন্ড", "সাবমিট",
+                "send_button", "sendbutton", "send_btn", "btn_send", "btn_submit", "button_send"
             )
-            val found = findActionNode(root, sendKeywords)
+            var found = findActionNode(root, sendKeywords)
+
+            // Priority 2: Search for search / go buttons (Browsers & search fields)
+            if (found == null) {
+                val searchKeywords = listOf("search", "search_button", "search_btn", "search_go_btn", "অনুসন্ধান", "খুঁজুন")
+                found = findActionNode(root, searchKeywords)
+            }
+
             if (found != null) {
                 val clicked = found.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 try { found.recycle() } catch (ignored: Exception) {}
-                DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: clicked window action node (success=$clicked)")
-                clicked
-            } else {
-                // 4. Fallback on API 30+: blindly try ACTION_IME_ENTER on focused node if available
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    var fn: AccessibilityNodeInfo? = null
-                    try {
-                        fn = findFocusedInputNode()
-                        fn?.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id) ?: false
-                    } catch (e: Exception) {
-                        false
-                    } finally {
-                        try { fn?.recycle() } catch (ignored: Exception) {}
-                    }
-                } else {
-                    false
-                }
+                DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: clicked send/submit button (success=$clicked)")
+                if (clicked) return true
             }
+
+            // Priority 3: Fallback for single-line search fields or forms with no on-screen button
+            var focused: AccessibilityNodeInfo? = null
+            try {
+                focused = findFocusedInputNode()
+                if (focused != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val imeEnter = AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER
+                    val imeSuccess = focused.performAction(imeEnter.id)
+                    DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: IME Enter fallback (success=$imeSuccess)")
+                    if (imeSuccess) return true
+                }
+            } finally {
+                try { focused?.recycle() } catch (ignored: Exception) {}
+            }
+
+            false
         } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "applySend error: ${e.message}")
             false
         } finally {
             try { root.recycle() } catch (ignored: Exception) {}
@@ -562,12 +526,28 @@ class TextBridgeService : AccessibilityService() {
     }
 
     private fun findActionNode(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
-        val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT) ?: ""
-        val text = node.text?.toString()?.lowercase(Locale.ROOT) ?: ""
+        val desc = node.contentDescription?.toString()?.trim()?.lowercase(Locale.ROOT) ?: ""
+        val text = node.text?.toString()?.trim()?.lowercase(Locale.ROOT) ?: ""
         val resName = node.viewIdResourceName?.lowercase(Locale.ROOT) ?: ""
-        if (node.isClickable && keywords.any { desc.contains(it) || text.contains(it) || resName.contains(it) }) {
-            return node
+
+        val isMatch = keywords.any { kw ->
+            val kwLower = kw.lowercase(Locale.ROOT)
+            desc == kwLower || text == kwLower ||
+                desc.startsWith("$kwLower ") || desc.endsWith(" $kwLower") ||
+                resName.contains(kwLower)
         }
+
+        val isNegative = desc.contains("back") || desc.contains("close") || desc.contains("navigate") ||
+                (node.isEditable && desc.isEmpty())
+
+        if (isMatch && !isNegative) {
+            if (node.isClickable) return node
+            val parent = node.parent
+            if (parent != null && parent.isClickable) {
+                return parent
+            }
+        }
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val match = findActionNode(child, keywords)
@@ -576,6 +556,7 @@ class TextBridgeService : AccessibilityService() {
         }
         return null
     }
+
 
     fun applyCopy(context: Context): Boolean {
         var node: AccessibilityNodeInfo? = null

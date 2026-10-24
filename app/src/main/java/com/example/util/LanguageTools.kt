@@ -219,8 +219,13 @@ object LanguageTools {
             defaultVoiceCommands.map { def ->
                 val stored = customMap[def.id]
                 if (stored != null) {
+                    val mergedTriggers = if (stored.triggers != null) {
+                        (stored.triggers + def.triggers).distinct()
+                    } else {
+                        def.triggers
+                    }
                     def.copy(
-                        triggers = stored.triggers ?: def.triggers,
+                        triggers = mergedTriggers,
                         enabled = stored.enabled ?: def.enabled,
                         requireConfirmation = stored.requireConfirmation ?: def.requireConfirmation
                     )

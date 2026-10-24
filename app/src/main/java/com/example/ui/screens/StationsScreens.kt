@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1119,102 +1121,6 @@ private fun Station05SoundFeel(settings: KothaSettings, repo: SettingsRepository
 
 @Composable
 private fun Station06LanguageTools(settings: KothaSettings, repo: SettingsRepository) {
-    val colors = LocalKothaColors.current
-    var rules by remember(settings.replacementsJson) {
-        mutableStateOf(LanguageTools.rulesFromJson(settings.replacementsJson))
-    }
-
-    var showAddDialog by remember { mutableStateOf(false) }
-    var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
-    var inputWord by remember { mutableStateOf("") }
-    var inputReplacement by remember { mutableStateOf("") }
-
-    if (showAddDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = {
-                showAddDialog = false
-                editingRuleIndex = null
-            },
-            title = {
-                Text(
-                    text = if (editingRuleIndex != null) "নিয়ম সম্পাদনা করুন • Edit Rule" else "নতুন প্রতিস্থাপন শব্দ যোগ করুন • Add New Rule",
-                    fontFamily = DisplayFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = colors.textPrimary
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "মুখে কী বলবেন (Spoken Phrase):",
-                        fontFamily = MonoFont,
-                        fontSize = 12.sp,
-                        color = colors.textMuted
-                    )
-                    androidx.compose.material3.OutlinedTextField(
-                        value = inputWord,
-                        onValueChange = { inputWord = it },
-                        placeholder = { Text("উদা: দাঁড়ি, কমা, হাসি", color = colors.textMuted) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "লেখায় যা প্রতিস্থাপিত হবে (Replaced With):",
-                        fontFamily = MonoFont,
-                        fontSize = 12.sp,
-                        color = colors.textMuted
-                    )
-                    androidx.compose.material3.OutlinedTextField(
-                        value = inputReplacement,
-                        onValueChange = { inputReplacement = it },
-                        placeholder = { Text("উদা: ।, ,, 😄", color = colors.textMuted) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val trimmedWord = inputWord.trim()
-                        val trimmedRep = inputReplacement.trim()
-                        if (trimmedWord.isNotEmpty()) {
-                            val mutableList = rules.toMutableList()
-                            val idx = editingRuleIndex
-                            if (idx != null && idx in mutableList.indices) {
-                                mutableList[idx] = LanguageTools.ReplacementRule(from = trimmedWord, to = trimmedRep)
-                            } else {
-                                mutableList.add(LanguageTools.ReplacementRule(from = trimmedWord, to = trimmedRep))
-                            }
-                            rules = mutableList
-                            val json = LanguageTools.rulesToJson(mutableList)
-                            repo.updateSettings { s -> s.copy(replacementsJson = json) }
-                        }
-                        showAddDialog = false
-                        editingRuleIndex = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                    shape = RoundedCornerShape(2.dp)
-                ) {
-                    Text("সংরক্ষণ • Save", fontFamily = MonoFont, color = Color.White)
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        showAddDialog = false
-                        editingRuleIndex = null
-                    }
-                ) {
-                    Text("বাতিল • Cancel", fontFamily = MonoFont, color = colors.textMuted)
-                }
-            },
-            containerColor = colors.surface
-        )
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingToggleRow(
             title = "Auto-Punctuation",
@@ -1243,7 +1149,7 @@ private fun Station06LanguageTools(settings: KothaSettings, repo: SettingsReposi
 
         SettingToggleRow(
             title = "Voice Commands",
-            description = "Recognises spoken commands: 'নতুন লাইন' (new line), 'নতুন প্যারা', 'undo', 'শব্দ মুছুন'.",
+            description = "Recognises spoken editing and punctuation commands (customizable in Station 09).",
             checked = settings.voiceCommandsEnabled,
             onCheckedChange = { repo.updateSettings { s -> s.copy(voiceCommandsEnabled = it) } }
         )
@@ -1254,131 +1160,6 @@ private fun Station06LanguageTools(settings: KothaSettings, repo: SettingsReposi
             checked = settings.autoCapitalizeLatin,
             onCheckedChange = { repo.updateSettings { s -> s.copy(autoCapitalizeLatin = it) } }
         )
-
-        SettingCard(
-            title = "Spoken Replacements Table • প্রতিস্থাপন তালিকা",
-            description = "Custom mappings from spoken words to written punctuation / symbols. আপনি নিজের পছন্দমতো যেকোনো শব্দ যোগ, পরিবর্তন বা মুছে দিতে পারেন।"
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Header with Add Button and Reset Button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "তালিকার নিয়মসমূহ (${rules.size}টি):",
-                        fontFamily = MonoFont,
-                        fontSize = 11.sp,
-                        color = colors.textMuted
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = {
-                                val def = LanguageTools.defaultBanglaReplacements
-                                rules = def
-                                val json = LanguageTools.rulesToJson(def)
-                                repo.updateSettings { s -> s.copy(replacementsJson = json) }
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(2.dp)
-                        ) {
-                            Text("রিসেট • Reset", fontFamily = MonoFont, fontSize = 10.sp, color = colors.textMuted)
-                        }
-                        Button(
-                            onClick = {
-                                inputWord = ""
-                                inputReplacement = ""
-                                editingRuleIndex = null
-                                showAddDialog = true
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(2.dp)
-                        ) {
-                            Text("+ নতুন যোগ • Add", fontFamily = MonoFont, fontSize = 11.sp, color = Color.White)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Editable Rules List
-                rules.forEachIndexed { index, rule ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
-                            .background(colors.surface)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "“${rule.from}”",
-                                fontFamily = DisplayFont,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = colors.textPrimary
-                            )
-                            Text(text = "→", fontFamily = MonoFont, fontSize = 12.sp, color = colors.accent)
-                            Text(
-                                text = "“${rule.to}”",
-                                fontFamily = DisplayFont,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            // Edit Button
-                            IconButton(
-                                onClick = {
-                                    inputWord = rule.from
-                                    inputReplacement = rule.to
-                                    editingRuleIndex = index
-                                    showAddDialog = true
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit rule",
-                                    tint = colors.textMuted,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            // Delete Button
-                            IconButton(
-                                onClick = {
-                                    val mutableList = rules.toMutableList()
-                                    if (index in mutableList.indices) {
-                                        mutableList.removeAt(index)
-                                        rules = mutableList
-                                        val json = LanguageTools.rulesToJson(mutableList)
-                                        repo.updateSettings { s -> s.copy(replacementsJson = json) }
-                                    }
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete rule",
-                                    tint = colors.signalCrimson.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -2048,6 +1829,7 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
     val commands = remember(settings.voiceCommandsJson) {
         LanguageTools.commandsFromJson(settings.voiceCommandsJson)
     }
+    var expandedCommandId by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingToggleRow(
@@ -2098,6 +1880,7 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
         }
 
         commands.forEach { cmd ->
+            val isExpanded = expandedCommandId == cmd.id
             var newTriggerInput by remember { mutableStateOf("") }
             var isBatchEditOpen by remember { mutableStateOf(false) }
             var batchEditText by remember(cmd.triggers) { mutableStateOf(cmd.triggers.joinToString(", ")) }
@@ -2116,9 +1899,13 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                     .background(if (cmd.enabled) colors.surface else colors.surface.copy(alpha = 0.5f))
                     .padding(14.dp)
             ) {
-                // Header Row with Title and Master Enable/Disable for this command
+                // Header Row with Title, Master Enable/Disable, and Accordion Toggle
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            expandedCommandId = if (isExpanded) null else cmd.id
+                        },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2154,7 +1941,7 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                                     if (defaultCmd != null) {
                                         val updated = commands.map { if (it.id == cmd.id) defaultCmd else it }
                                         repo.updateSettings {
-                                            it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                             it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
                                         }
                                         Toast.makeText(context, "Reset ${cmd.actionName}", Toast.LENGTH_SHORT).show()
                                     }
@@ -2181,222 +1968,235 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                                 }
                             }
                         )
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
-                // Per-Command Confirmation Toggle Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, colors.hairline.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
-                        .background(colors.background.copy(alpha = 0.6f))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Require Confirmation Popup • নিশ্চিতকরণ পপআপ",
-                            fontFamily = MonoFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = if (cmd.requireConfirmation) colors.accent else colors.textPrimary
-                        )
-                        Text(
-                            text = if (cmd.requireConfirmation) "সরাসরি প্রয়োগ না করে নিশ্চিতকরণ কার্ড দেখাবে" else "সরাসরি প্রয়োগ করবে (পপআপ ছাড়া)",
-                            fontFamily = MonoFont,
-                            fontSize = 10.sp,
-                            color = colors.textMuted
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = if (isExpanded) colors.accent else colors.textMuted,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    InkBracketToggle(
-                        checked = cmd.requireConfirmation,
-                        onCheckedChange = { isReq ->
-                            val updated = commands.map { if (it.id == cmd.id) it.copy(requireConfirmation = isReq) else it }
-                            repo.updateSettings {
-                                it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
-                            }
-                        }
-                    )
                 }
 
-                if (!cmd.enabled) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "⚠️ এই কমান্ডটি বন্ধ রাখা হয়েছে — মুখে বললে সাধারণ টেক্সট হিসেবে লেখা হবে।",
-                        fontFamily = MonoFont,
-                        fontSize = 10.sp,
-                        color = colors.textMuted
-                    )
-                }
+                AnimatedVisibility(visible = isExpanded) {
+                    Column {
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Active Triggers (Unlimited Chips)
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    cmd.triggers.forEach { trig ->
+                        // Per-Command Confirmation Toggle Row
                         Row(
                             modifier = Modifier
-                                .border(1.dp, colors.hairline, RoundedCornerShape(14.dp))
-                                .background(colors.background)
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .fillMaxWidth()
+                                .border(1.dp, colors.hairline.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                                .background(colors.background.copy(alpha = 0.6f))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = trig,
-                                fontFamily = MonoFont,
-                                fontSize = 11.sp,
-                                color = colors.textPrimary
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Require Confirmation Popup • নিশ্চিতকরণ পপআপ",
+                                    fontFamily = MonoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = if (cmd.requireConfirmation) colors.accent else colors.textPrimary
+                                )
+                                Text(
+                                    text = if (cmd.requireConfirmation) "সরাসরি প্রয়োগ না করে নিশ্চিতকরণ কার্ড দেখাবে" else "সরাসরি প্রয়োগ করবে (পপআপ ছাড়া)",
+                                    fontFamily = MonoFont,
+                                    fontSize = 10.sp,
+                                    color = colors.textMuted
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            InkBracketToggle(
+                                checked = cmd.requireConfirmation,
+                                onCheckedChange = { isReq ->
+                                    val updated = commands.map { if (it.id == cmd.id) it.copy(requireConfirmation = isReq) else it }
+                                    repo.updateSettings {
+                                        it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                    }
+                                }
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Remove trigger",
-                                tint = colors.textMuted,
-                                modifier = Modifier
-                                    .size(13.dp)
-                                    .clickable {
-                                        val updatedTriggers = cmd.triggers.filter { it != trig }
-                                        val updated = commands.map { if (it.id == cmd.id) it.copy(triggers = updatedTriggers) else it }
+                        }
+
+                        if (!cmd.enabled) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "⚠️ এই কমান্ডটি বন্ধ রাখা হয়েছে — মুখে বললে সাধারণ টেক্সট হিসেবে লেখা হবে।",
+                                fontFamily = MonoFont,
+                                fontSize = 10.sp,
+                                color = colors.textMuted
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Active Triggers (Unlimited Chips)
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            cmd.triggers.forEach { trig ->
+                                Row(
+                                    modifier = Modifier
+                                        .border(1.dp, colors.hairline, RoundedCornerShape(14.dp))
+                                        .background(colors.background)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = trig,
+                                        fontFamily = MonoFont,
+                                        fontSize = 11.sp,
+                                        color = colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove trigger",
+                                        tint = colors.textMuted,
+                                        modifier = Modifier
+                                            .size(13.dp)
+                                            .clickable {
+                                                val updatedTriggers = cmd.triggers.filter { it != trig }
+                                                val updated = commands.map { if (it.id == cmd.id) it.copy(triggers = updatedTriggers) else it }
+                                                repo.updateSettings {
+                                                    it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Add Trigger Input Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newTriggerInput,
+                                onValueChange = { newTriggerInput = it },
+                                placeholder = {
+                                    Text(
+                                        "Add trigger(s), e.g. বাক্য কাটো...",
+                                        fontFamily = MonoFont,
+                                        fontSize = 11.sp,
+                                        color = colors.textMuted
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = colors.accent,
+                                    unfocusedBorderColor = colors.hairline,
+                                    focusedTextColor = colors.textPrimary,
+                                    unfocusedTextColor = colors.textPrimary,
+                                    cursorColor = colors.accent
+                                ),
+                                shape = RoundedCornerShape(2.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = MonoFont,
+                                    fontSize = 12.sp
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Button(
+                                onClick = {
+                                    if (newTriggerInput.isNotBlank()) {
+                                        val additions = newTriggerInput
+                                            .split(",")
+                                            .map { it.trim() }
+                                            .filter { it.isNotEmpty() }
+                                        val merged = (cmd.triggers + additions).distinct()
+                                        val updated = commands.map {
+                                            if (it.id == cmd.id) it.copy(triggers = merged) else it
+                                        }
                                         repo.updateSettings {
                                             it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
                                         }
+                                        newTriggerInput = ""
+                                        Toast.makeText(context, "Added triggers for ${cmd.actionName}", Toast.LENGTH_SHORT).show()
                                     }
-                            )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                                shape = RoundedCornerShape(2.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                modifier = Modifier.height(44.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Add",
+                                    fontFamily = MonoFont,
+                                    fontSize = 11.sp,
+                                    color = Color.White
+                                )
+                            }
                         }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                // Add Trigger Input Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newTriggerInput,
-                        onValueChange = { newTriggerInput = it },
-                        placeholder = {
+                        // Collapsible Batch Edit
+                        Row(
+                            modifier = Modifier
+                                .clickable { isBatchEditOpen = !isBatchEditOpen }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                "Add trigger(s), e.g. বাক্য কাটো...",
+                                text = if (isBatchEditOpen) "Hide batch text editor ▲" else "Batch edit comma-separated text ▼",
                                 fontFamily = MonoFont,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = colors.textMuted
                             )
-                        },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colors.accent,
-                            unfocusedBorderColor = colors.hairline,
-                            focusedTextColor = colors.textPrimary,
-                            unfocusedTextColor = colors.textPrimary,
-                            cursorColor = colors.accent
-                        ),
-                        shape = RoundedCornerShape(2.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontFamily = MonoFont,
-                            fontSize = 12.sp
-                        )
-                    )
+                        }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Button(
-                        onClick = {
-                            if (newTriggerInput.isNotBlank()) {
-                                val additions = newTriggerInput
-                                    .split(",")
-                                    .map { it.trim() }
-                                    .filter { it.isNotEmpty() }
-                                val merged = (cmd.triggers + additions).distinct()
-                                val updated = commands.map {
-                                    if (it.id == cmd.id) it.copy(triggers = merged) else it
-                                }
-                                repo.updateSettings {
-                                    it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
-                                }
-                                newTriggerInput = ""
-                                Toast.makeText(context, "Added triggers for ${cmd.actionName}", Toast.LENGTH_SHORT).show()
+                        if (isBatchEditOpen) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = batchEditText,
+                                onValueChange = { batchEditText = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = colors.accent,
+                                    unfocusedBorderColor = colors.hairline,
+                                    focusedTextColor = colors.textPrimary,
+                                    unfocusedTextColor = colors.textPrimary
+                                ),
+                                shape = RoundedCornerShape(2.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, fontSize = 11.sp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Button(
+                                onClick = {
+                                    val items = batchEditText
+                                        .split(",")
+                                        .map { it.trim() }
+                                        .filter { it.isNotEmpty() }
+                                    val updated = commands.map {
+                                        if (it.id == cmd.id) it.copy(triggers = items) else it
+                                    }
+                                    repo.updateSettings {
+                                        it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
+                                    }
+                                    Toast.makeText(context, "Saved all triggers", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
+                                shape = RoundedCornerShape(2.dp),
+                                modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(text = "Save Batch Text", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                        shape = RoundedCornerShape(2.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        modifier = Modifier.height(44.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Add",
-                            fontFamily = MonoFont,
-                            fontSize = 11.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Collapsible Batch Edit
-                Row(
-                    modifier = Modifier
-                        .clickable { isBatchEditOpen = !isBatchEditOpen }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isBatchEditOpen) "Hide batch text editor ▲" else "Batch edit comma-separated text ▼",
-                        fontFamily = MonoFont,
-                        fontSize = 10.sp,
-                        color = colors.textMuted
-                    )
-                }
-
-                if (isBatchEditOpen) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = batchEditText,
-                        onValueChange = { batchEditText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colors.accent,
-                            unfocusedBorderColor = colors.hairline,
-                            focusedTextColor = colors.textPrimary,
-                            unfocusedTextColor = colors.textPrimary
-                        ),
-                        shape = RoundedCornerShape(2.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = MonoFont, fontSize = 11.sp)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Button(
-                        onClick = {
-                            val items = batchEditText
-                                .split(",")
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                            val updated = commands.map {
-                                if (it.id == cmd.id) it.copy(triggers = items) else it
-                            }
-                            repo.updateSettings {
-                                it.copy(voiceCommandsJson = LanguageTools.commandsToJson(updated))
-                            }
-                            Toast.makeText(context, "Saved all triggers", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(text = "Save Batch Text", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
+                        }
                     }
                 }
             }
