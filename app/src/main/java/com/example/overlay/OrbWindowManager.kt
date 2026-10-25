@@ -326,8 +326,8 @@ class OrbWindowManager(
             }
         }
 
-        // Toggle touchability: when invisible or zero width or disabled, don't capture touch
-        val shouldBeTouchable = settings.tapCaptionToUndo && capView.visibility == View.VISIBLE && capW > 0
+        // Toggle touchability: only capture touch when the applied undo button is active (finalUtterance is not blank)
+        val shouldBeTouchable = settings.tapCaptionToUndo && capView.visibility == View.VISIBLE && capView.finalUtterance.isNotBlank() && capW > 0
         if (shouldBeTouchable) {
             capParams.flags = capParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         } else {

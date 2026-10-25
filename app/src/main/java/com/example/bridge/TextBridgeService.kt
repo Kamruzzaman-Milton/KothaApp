@@ -454,9 +454,11 @@ class TextBridgeService : AccessibilityService() {
             val args = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
             }
-            var success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            if (!success) {
-                // Fallback: select all and cut or replace
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            
+            // Check if text is still present (some apps reject SET_TEXT with empty string)
+            val (currentText, isHint) = extractActualFieldText(node)
+            if (!isHint && currentText.isNotEmpty()) {
                 val len = node.text?.length ?: 0
                 if (len > 0) {
                     val selArgs = Bundle().apply {
@@ -465,14 +467,72 @@ class TextBridgeService : AccessibilityService() {
                     }
                     node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
                     node.performAction(AccessibilityNodeInfo.ACTION_CUT)
-                    success = true
                 }
             }
             applySelection(0, 0)
             refreshFocusedNode()
-            success
+            true
         } catch (e: Exception) {
             DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "clearAll failed: ${e.message}")
+            false
+        } finally {
+            try { node?.recycle() } catch (ignored: Exception) {}
+        }
+    }
+
+    fun applyDeleteRange(start: Int, end: Int, replacementFullText: String): Boolean {
+        var node: AccessibilityNodeInfo? = null
+        return try {
+            node = findFocusedInputNode() ?: return false
+            val nodeTextLen = node.text?.length ?: 0
+
+            // If the entire field is being cleared or replacement is empty
+            if (replacementFullText.isEmpty() || (start <= 0 && end >= nodeTextLen)) {
+                return clearAll()
+            }
+
+            val safeStart = start.coerceIn(0, nodeTextLen)
+            val safeEnd = end.coerceIn(safeStart, nodeTextLen)
+
+            // 1. Try standard ACTION_SET_TEXT with replacementFullText
+            val setTextArgs = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, replacementFullText)
+            }
+            val setSuccess = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setTextArgs)
+
+            // Check if the text actually updated
+            val (textAfterSet, _) = extractActualFieldText(node)
+            if (setSuccess && textAfterSet == replacementFullText) {
+                applySelection(safeStart, safeStart)
+                refreshFocusedNode()
+                return true
+            }
+
+            // 2. Fallback for apps where ACTION_SET_TEXT fails or is ignored (e.g. WhatsApp):
+            // Select the span to be deleted and perform ACTION_CUT
+            val selArgs = Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, safeStart)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, safeEnd)
+            }
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
+
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val prevClip = cm?.primaryClip
+
+            node.performAction(AccessibilityNodeInfo.ACTION_CUT)
+
+            // Restore clipboard to preserve user's copied item
+            if (cm != null && prevClip != null) {
+                try {
+                    cm.setPrimaryClip(prevClip)
+                } catch (ignored: Exception) {}
+            }
+
+            applySelection(safeStart, safeStart)
+            refreshFocusedNode()
+            true
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "applyDeleteRange failed: ${e.message}")
             false
         } finally {
             try { node?.recycle() } catch (ignored: Exception) {}

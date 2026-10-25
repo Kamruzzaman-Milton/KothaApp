@@ -196,21 +196,54 @@ class SpanTracker {
      */
     fun calculateUndo(actualCurrentText: String): Pair<String, Int>? {
         val committed = lastCommitted ?: return null
-        val start = committed.start
-        val end = start + committed.text.length
+        var start = committed.start
+        val textToUndo = committed.text
+        var end = start + textToUndo.length
 
-        if (start < 0 || end > actualCurrentText.length) return null
+        // Case 1: Exact match at [start, end]
+        if (start >= 0 && end <= actualCurrentText.length && actualCurrentText.substring(start, end) == textToUndo) {
+            val before = actualCurrentText.substring(0, start)
+            val after = actualCurrentText.substring(end)
+            lastCommitted = null
+            currentSpan = null
+            return Pair(before + after, start)
+        }
 
-        val currentPiece = actualCurrentText.substring(start, end)
-        if (currentPiece != committed.text) return null
+        // Case 2: Relocate if user moved or text shifted slightly
+        val relocatedIdx = findNearPosition(actualCurrentText, textToUndo, start)
+        if (relocatedIdx != -1) {
+            val relEnd = (relocatedIdx + textToUndo.length).coerceAtMost(actualCurrentText.length)
+            val before = actualCurrentText.substring(0, relocatedIdx)
+            val after = actualCurrentText.substring(relEnd)
+            lastCommitted = null
+            currentSpan = null
+            return Pair(before + after, relocatedIdx)
+        }
 
-        val before = actualCurrentText.substring(0, start)
-        val after = actualCurrentText.substring(end)
-        val undoneText = before + after
+        // Case 3: Try trimmed textToUndo
+        val trimmed = textToUndo.trim()
+        if (trimmed.isNotEmpty()) {
+            val trimmedIdx = findNearPosition(actualCurrentText, trimmed, start)
+            if (trimmedIdx != -1) {
+                val relEnd = (trimmedIdx + trimmed.length).coerceAtMost(actualCurrentText.length)
+                val before = actualCurrentText.substring(0, trimmedIdx)
+                val after = actualCurrentText.substring(relEnd)
+                lastCommitted = null
+                currentSpan = null
+                return Pair(before + after, trimmedIdx)
+            }
+        }
+
+        // Case 4: Entire field matches text to undo
+        if (actualCurrentText == textToUndo || actualCurrentText.trim() == textToUndo.trim()) {
+            lastCommitted = null
+            currentSpan = null
+            return Pair("", 0)
+        }
 
         lastCommitted = null
         currentSpan = null
-        return Pair(undoneText, start)
+        return null
     }
 
     private fun findNearPosition(text: String, target: String, expectedPos: Int): Int {

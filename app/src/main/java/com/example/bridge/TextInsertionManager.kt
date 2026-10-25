@@ -282,15 +282,26 @@ class TextInsertionManager(
 
     fun performUndo(): Boolean {
         val service = TextBridgeService.instance ?: return false
-        val snapshot = TextBridgeStateHolder.focusedSnapshot.value ?: return false
+        val snapshot = service.getLiveFocusedSnapshot() ?: TextBridgeStateHolder.focusedSnapshot.value ?: return false
 
-        val undoResult = spanTracker.calculateUndo(snapshot.currentText) ?: return false
+        val committed = spanTracker.getLastCommitted()
+        val undoResult = spanTracker.calculateUndo(snapshot.currentText)
+        if (undoResult == null) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Undo cannot be calculated: no matching span")
+            return false
+        }
         val (undoneText, cursor) = undoResult
 
-        val success = service.applySetText(undoneText)
+        val start = committed?.start ?: cursor
+        val lengthToRemove = committed?.text?.length ?: (snapshot.currentText.length - undoneText.length).coerceAtLeast(0)
+        val end = start + lengthToRemove
+
+        val success = service.applyDeleteRange(start, end, undoneText)
         if (success) {
-            service.applySelection(cursor, cursor)
-            DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Undo successfully applied")
+            spanTracker.reset()
+            _lastInsertedUtterance.value = ""
+            _liveCaptionText.value = ""
+            DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "Undo successfully applied and span tracker reset")
             return true
         }
         return false

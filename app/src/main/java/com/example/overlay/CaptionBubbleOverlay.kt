@@ -104,8 +104,8 @@ class CaptionBubbleOverlay(
 
     private fun handleTapToUndo() {
         if (!settings.tapCaptionToUndo) return
-        val hasSpoken = partialText.isNotBlank() || finalUtterance.isNotBlank()
-        if (hasSpoken || dictationState !is DictationState.Idle) {
+        // Undo is strictly active only after dictation is applied (finalUtterance is non-blank)
+        if (finalUtterance.isNotBlank()) {
             try {
                 performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
             } catch (ignored: Exception) {}
@@ -198,8 +198,8 @@ class CaptionBubbleOverlay(
             postInvalidate()
             onLayoutChanged?.invoke()
 
-            // Keep final committed text visible briefly before returning to gap prompt
-            val lingerMs = settings.captionLingerDurationMs.coerceIn(800L, 4000L)
+            // Keep final committed text and undo button visible so user has ample time to review and undo
+            val lingerMs = max(4500L, settings.captionLingerDurationMs)
             postDelayed(clearFinalRunnable, lingerMs)
         }
     }
@@ -302,8 +302,8 @@ class CaptionBubbleOverlay(
         val padY = (10 * density)
         val dotRadius = (5 * density) // 10dp dot
         val dotGap = (10 * density)
-        val hasSpeech = partialText.isNotBlank() || finalUtterance.isNotBlank()
-        val undoExtraWidth = if (settings.tapCaptionToUndo && hasSpeech) (26 * density) else 0f
+        val hasApplied = finalUtterance.isNotBlank()
+        val undoExtraWidth = if (settings.tapCaptionToUndo && hasApplied) (44 * density) else 0f
 
         val maxAllowedW = min((resources.displayMetrics.widthPixels - (96 * density).toInt()).coerceAtLeast(160), (320 * density).toInt())
         val contentWidth = layout.width.toFloat().coerceAtMost(maxLineWidth(layout))
@@ -387,11 +387,34 @@ class CaptionBubbleOverlay(
         layout.draw(canvas)
         canvas.restore()
 
-        // 5. Draw Undo Icon ("↶") if tap-to-undo is enabled and speech is present
-        if (settings.tapCaptionToUndo && (hasPartial || finalUtterance.isNotBlank())) {
-            val undoX = width - (13f * density)
-            val undoY = height / 2f - ((undoTextPaint.descent() + undoTextPaint.ascent()) / 2f)
-            undoTextPaint.color = ColorUtils.setAlphaComponent(0xFFFFFFFF.toInt(), 190)
+        // 5. Draw Undo Button ONLY when dictation has been applied (finalUtterance is not blank)
+        if (settings.tapCaptionToUndo && finalUtterance.isNotBlank()) {
+            val btnW = 34f * density
+            val btnH = 24f * density
+            val btnRight = width - (10f * density)
+            val btnLeft = btnRight - btnW
+            val btnTop = (height - btnH) / 2f
+            val btnBottom = btnTop + btnH
+            val btnRect = RectF(btnLeft, btnTop, btnRight, btnBottom)
+            val btnRadius = 12f * density
+
+            // Draw undo button pill background & border
+            val undoBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = 0x38FFFFFF
+            }
+            val undoBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 1.2f * density
+                color = 0x66FFFFFF
+            }
+            canvas.drawRoundRect(btnRect, btnRadius, btnRadius, undoBgPaint)
+            canvas.drawRoundRect(btnRect, btnRadius, btnRadius, undoBorderPaint)
+
+            // Draw undo icon inside button
+            val undoX = btnRect.centerX()
+            val undoY = btnRect.centerY() - ((undoTextPaint.descent() + undoTextPaint.ascent()) / 2f)
+            undoTextPaint.color = Color.WHITE
             canvas.drawText("↶", undoX, undoY, undoTextPaint)
         }
     }
