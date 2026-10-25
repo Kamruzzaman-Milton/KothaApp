@@ -71,16 +71,20 @@ class QuickPanelOverlay(
         }
         val btnPrimaryLang = createChipButton(
             label = "Primary: ${settings.primaryLanguage}",
-            isSelected = true
+            isSelected = !settings.isSecondaryLanguageActive
         ) {
-            onSwitchLanguage(settings.primaryLanguage)
+            if (settings.isSecondaryLanguageActive) {
+                onSwitchLanguage(settings.primaryLanguage)
+            }
             onDismiss()
         }
         val btnSecondaryLang = createChipButton(
             label = "Secondary: ${settings.secondaryLanguage}",
-            isSelected = false
+            isSelected = settings.isSecondaryLanguageActive
         ) {
-            onSwitchLanguage(settings.secondaryLanguage)
+            if (!settings.isSecondaryLanguageActive) {
+                onSwitchLanguage(settings.secondaryLanguage)
+            }
             onDismiss()
         }
         langRow.addView(btnPrimaryLang)

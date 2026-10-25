@@ -92,6 +92,7 @@ data class KothaSettings(
     val engineService: String = "com.google.android.voicesearch.serviceapi.GoogleRecognitionService",
     val primaryLanguage: String = "bn-BD",
     val secondaryLanguage: String = "en-US",
+    val isSecondaryLanguageActive: Boolean = false,
     val customBcp47: String = "",
     val preferOffline: Boolean = false,
     val useOnDevice: Boolean = false,
@@ -189,10 +190,19 @@ data class KothaSettings(
     val appTheme: AppTheme = AppTheme.DARK,
     val accentInk: AccentInk = AccentInk.VERMILION
 ) {
+    fun getActiveDictationLanguage(): String {
+        return if (isSecondaryLanguageActive) {
+            secondaryLanguage.ifBlank { "en-US" }
+        } else {
+            if (customBcp47.isNotBlank()) customBcp47 else primaryLanguage.ifBlank { "bn-BD" }
+        }
+    }
+
     fun toJson(): String {
         val root = JSONObject()
         root.put("primaryLanguage", primaryLanguage)
         root.put("secondaryLanguage", secondaryLanguage)
+        root.put("isSecondaryLanguageActive", isSecondaryLanguageActive)
         root.put("customBcp47", customBcp47)
         root.put("preferOffline", preferOffline)
         root.put("useOnDevice", useOnDevice)
@@ -290,6 +300,7 @@ data class KothaSettings(
             return base.copy(
                 primaryLanguage = root.optString("primaryLanguage", base.primaryLanguage),
                 secondaryLanguage = root.optString("secondaryLanguage", base.secondaryLanguage),
+                isSecondaryLanguageActive = root.optBoolean("isSecondaryLanguageActive", base.isSecondaryLanguageActive),
                 customBcp47 = root.optString("customBcp47", base.customBcp47),
                 preferOffline = root.optBoolean("preferOffline", base.preferOffline),
                 useOnDevice = root.optBoolean("useOnDevice", base.useOnDevice),

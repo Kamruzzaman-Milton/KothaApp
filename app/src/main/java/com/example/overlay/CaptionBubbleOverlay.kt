@@ -238,9 +238,9 @@ class CaptionBubbleOverlay(
 
         val density = resources.displayMetrics.density
         val screenWidth = resources.displayMetrics.widthPixels
-        val maxAvailableWidth = (screenWidth - (48 * density).toInt()).coerceAtLeast(180)
-        val maxCardWidth = min(maxAvailableWidth, (360 * density).toInt())
-        val horizontalPad = (48 * density).toInt() // Pad + Dot + DotGap
+        val maxAvailableWidth = (screenWidth - (96 * density).toInt()).coerceAtLeast(160)
+        val maxCardWidth = min(maxAvailableWidth, (300 * density).toInt())
+        val horizontalPad = (44 * density).toInt() // Pad + Dot + DotGap
         val textWidth = max((80 * density).toInt(), maxCardWidth - horizontalPad)
 
         val maxLines = if (isSpoken) settings.captionMaxLines.coerceIn(2, 4) else 2
@@ -278,17 +278,12 @@ class CaptionBubbleOverlay(
         val dotRadius = (5 * density) // 10dp dot
         val dotGap = (10 * density)
 
+        val maxAllowedW = min((resources.displayMetrics.widthPixels - (96 * density).toInt()).coerceAtLeast(160), (300 * density).toInt())
         val contentWidth = layout.width.toFloat().coerceAtMost(maxLineWidth(layout))
-        val totalWidth = contentWidth + padX * 2 + dotRadius * 2 + dotGap
-        val totalHeight = layout.height + padY * 2
+        val totalWidth = (contentWidth + padX * 2 + dotRadius * 2 + dotGap).toInt().coerceIn((100 * density).toInt(), maxAllowedW)
+        val totalHeight = (layout.height + padY * 2).toInt().coerceAtLeast((36 * density).toInt())
 
-        val minWidth = (140 * density).toInt()
-        val minHeight = (38 * density).toInt()
-
-        setMeasuredDimension(
-            totalWidth.toInt().coerceAtLeast(minWidth),
-            totalHeight.toInt().coerceAtLeast(minHeight)
-        )
+        setMeasuredDimension(totalWidth, totalHeight)
     }
 
     private fun maxLineWidth(layout: StaticLayout): Float {

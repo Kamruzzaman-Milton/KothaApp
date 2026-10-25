@@ -189,10 +189,90 @@ private fun Station01Voice(settings: KothaSettings, repo: SettingsRepository) {
     val context = LocalContext.current
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Section: Primary Speech Language
+        // Quick Active Language Toggle Card
+        SettingCard(
+            title = "Active Language • সক্রিয় উচ্চারণ ভাষা",
+            description = "বর্তমানে কোন ভাষায় ভয়েস ইনপুট নেওয়া হচ্ছে। ডিক্টেশন চলাকালীন ফ্লোটিং বাটনের উপরের ছোট বাটনটি ট্যাপ করেও সরাসরি অদলবদল করতে পারবেন।"
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val isSecondary = settings.isSecondaryLanguageActive
+                // Primary Option
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .border(1.5.dp, if (!isSecondary) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                        .background(if (!isSecondary) colors.accent.copy(alpha = 0.15f) else colors.surface)
+                        .clickable { repo.updateSettings { it.copy(isSecondaryLanguageActive = false) } }
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = if (!isSecondary) "● ACTIVE PRIMARY" else "PRIMARY",
+                            fontFamily = MonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = if (!isSecondary) colors.accent else colors.textMuted
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "বাংলা (Bengali)",
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = settings.primaryLanguage,
+                            fontFamily = MonoFont,
+                            fontSize = 11.sp,
+                            color = colors.textMuted
+                        )
+                    }
+                }
+
+                // Secondary Option
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .border(1.5.dp, if (isSecondary) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                        .background(if (isSecondary) colors.accent.copy(alpha = 0.15f) else colors.surface)
+                        .clickable { repo.updateSettings { it.copy(isSecondaryLanguageActive = true) } }
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = if (isSecondary) "● ACTIVE SECONDARY" else "SECONDARY",
+                            fontFamily = MonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = if (isSecondary) colors.accent else colors.textMuted
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "English",
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = settings.secondaryLanguage,
+                            fontFamily = MonoFont,
+                            fontSize = 11.sp,
+                            color = colors.textMuted
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 1: Primary Speech Language
         SettingCard(
             title = "1. Primary Speech Language • মূল উচ্চারণ ভাষা",
-            description = "আপনার প্রধান কথ্য ভাষা নির্বাচন করুন (BCP-47)। বাংলা ভ্যারিয়েন্টগুলো শীর্ষে পিন করা রয়েছে।"
+            description = "আপনার প্রধান কথ্য ভাষা নির্বাচন করুন (ডিফল্ট: বাংলা)।"
         ) {
             val languages = LanguageData.curatedLanguages.take(12)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -218,9 +298,42 @@ private fun Station01Voice(settings: KothaSettings, repo: SettingsRepository) {
             }
         }
 
-        // Section: Custom BCP-47 Tag
+        // Section 2: Secondary Speech Language
         SettingCard(
-            title = "2. Custom BCP-47 Tag • কাস্টম ভাষা কোড",
+            title = "2. Secondary Speech Language • দ্বিতীয় উচ্চারণ ভাষা",
+            description = "আপনার দ্বিতীয় কথ্য ভাষা নির্বাচন করুন (ডিফল্ট: English)। দ্রুত অদলবদল করার জন্য ইংরেজি ভ্যারিয়েন্টগুলো শীর্ষে পিন করা রয়েছে।"
+        ) {
+            val secondaryLanguages = remember {
+                val englishVariants = LanguageData.curatedLanguages.filter { it.bcp47.startsWith("en") }
+                val others = LanguageData.curatedLanguages.filter { !it.bcp47.startsWith("en") }
+                englishVariants + others.take(8)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                secondaryLanguages.forEach { lang ->
+                    val isSelected = settings.secondaryLanguage.equals(lang.bcp47, ignoreCase = true)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, if (isSelected) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                            .background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.surface)
+                            .clickable { repo.updateSettings { it.copy(secondaryLanguage = lang.bcp47) } }
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = lang.displayName, fontFamily = DisplayFont, fontSize = 14.sp, color = colors.textPrimary)
+                            Text(text = lang.nativeName, fontFamily = MonoFont, fontSize = 11.sp, color = colors.textMuted)
+                        }
+                        Text(text = lang.bcp47, fontFamily = MonoFont, fontSize = 12.sp, color = if (isSelected) colors.accent else colors.textMuted)
+                    }
+                }
+            }
+        }
+
+        // Section 3: Custom BCP-47 Tag
+        SettingCard(
+            title = "3. Custom BCP-47 Tag • কাস্টম ভাষা কোড",
             description = "অন্য কোনো নির্দিষ্ট আঞ্চলিক ভাষা কোড ম্যানুয়ালি দিতে চাইলে এখানে লিখুন।"
         ) {
             var textInput by remember { mutableStateOf(settings.customBcp47) }

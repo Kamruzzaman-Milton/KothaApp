@@ -69,21 +69,7 @@ class DictationService : Service() {
                                 speechEngineManager.stopSession()
                             }
                             is LanguageTools.VoiceCommandResult.SwitchLanguage -> {
-                                val s = settingsRepository.cachedSettings
-                                val newPrimary = s.secondaryLanguage
-                                val newSecondary = s.primaryLanguage
-                                settingsRepository.updateSettings {
-                                    it.copy(primaryLanguage = newPrimary, secondaryLanguage = newSecondary)
-                                }
-                                speechEngineManager.stopSession()
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    speechEngineManager.startSession()
-                                }, 350)
-                                android.widget.Toast.makeText(
-                                    this,
-                                    "Language: $newPrimary",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
+                                handleToggleLanguage()
                             }
                             else -> {}
                         }
@@ -117,6 +103,9 @@ class DictationService : Service() {
             },
             onHideOrb = {
                 stopSelf()
+            },
+            onToggleLanguage = {
+                handleToggleLanguage()
             }
         )
 
@@ -274,6 +263,28 @@ class DictationService : Service() {
             DictationMode.CONTINUOUS
         }
         settingsRepository.updateSettings { it.copy(dictationMode = newMode) }
+    }
+
+    private fun handleToggleLanguage() {
+        val s = settingsRepository.cachedSettings
+        val newIsSecondary = !s.isSecondaryLanguageActive
+        settingsRepository.updateSettings {
+            it.copy(isSecondaryLanguageActive = newIsSecondary)
+        }
+
+        val targetLang = if (newIsSecondary) s.secondaryLanguage else s.primaryLanguage
+        val displayLabel = if (newIsSecondary) "English ($targetLang)" else "বাংলা ($targetLang)"
+
+        val currentState = speechEngineManager.dictationState.value
+        if (currentState !is DictationState.Idle && currentState !is DictationState.Paused) {
+            speechEngineManager.switchLanguageAndRestart()
+        }
+
+        android.widget.Toast.makeText(
+            this,
+            "Language: $displayLabel",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun startForegroundNotification() {

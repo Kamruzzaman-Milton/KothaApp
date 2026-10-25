@@ -363,6 +363,31 @@ class SpeechEngineManager(
         }
     }
 
+    fun switchLanguageAndRestart() {
+        if (!isSessionActive) return
+        commitPendingPartial()
+
+        runOnMainThread {
+            try { recognizerA?.stopListening() } catch (ignored: Exception) {}
+            try { recognizerA?.cancel() } catch (ignored: Exception) {}
+            try { recognizerB?.stopListening() } catch (ignored: Exception) {}
+            try { recognizerB?.cancel() } catch (ignored: Exception) {}
+            destroyRecognizersInternal()
+
+            val gen = ++sessionGeneration
+            isSessionActive = true
+            _dictationState.value = DictationState.Restarting
+
+            restartJob?.cancel()
+            restartJob = scope.launch {
+                delay(280L)
+                if (isSessionActive && gen == sessionGeneration) {
+                    startListeningSlot(RecognizerSlot.SLOT_A, gen, isSilentReopen = false)
+                }
+            }
+        }
+    }
+
     private fun startListeningSlot(slot: RecognizerSlot, generation: Long, isSilentReopen: Boolean = false) {
         if (!isSessionActive || generation != sessionGeneration) return
 
@@ -603,7 +628,7 @@ class SpeechEngineManager(
 
     private fun buildRecognizerIntent(): Intent {
         val settings = settingsRepository.cachedSettings
-        val lang = if (settings.customBcp47.isNotBlank()) settings.customBcp47 else settings.primaryLanguage
+        val lang = settings.getActiveDictationLanguage()
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)

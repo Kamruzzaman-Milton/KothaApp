@@ -27,16 +27,19 @@ class OrbWindowManager(
     private val onDoubleTap: () -> Unit,
     private val onUndo: () -> Unit,
     private val onTogglePause: () -> Unit,
-    private val onHideOrb: () -> Unit
+    private val onHideOrb: () -> Unit,
+    private val onToggleLanguage: () -> Unit
 ) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var floatingView: OrbFloatingView? = null
     private var captionBubbleView: CaptionBubbleOverlay? = null
+    private var languageIndicatorView: LanguageIndicatorOverlay? = null
     private var quickPanelView: QuickPanelOverlay? = null
     private var confirmOverlayView: CommandConfirmOverlay? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var captionLayoutParams: WindowManager.LayoutParams? = null
+    private var languageIndicatorParams: WindowManager.LayoutParams? = null
 
     private var normalizedX = 0.85f
     private var normalizedY = 0.50f
@@ -46,6 +49,9 @@ class OrbWindowManager(
 
     private var isViewAttached = false
     private var isCaptionAttached = false
+    private var isLanguageIndicatorAttached = false
+    private var isOrbVisuallyVisible = true
+    private var isDictationRunning = false
 
     init {
         // Load permanently saved position on initialization
@@ -118,6 +124,7 @@ class OrbWindowManager(
                 try {
                     windowManager.updateViewLayout(floatingView, params)
                 } catch (ignored: Exception) {}
+                updateLanguageIndicatorPosition()
                 updateCaptionPosition()
             },
             onDragFinished = { _, _ ->
@@ -133,11 +140,90 @@ class OrbWindowManager(
         try {
             windowManager.addView(floatingView, params)
             isViewAttached = true
+            setupLanguageIndicator(settings)
             setupCaptionBubble(settings)
             DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "Floating Orb added to WindowManager (size=${settings.orbSizeDp}dp)")
         } catch (e: Exception) {
             DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to add floating Orb: ${e.message}")
         }
+    }
+
+    private fun setupLanguageIndicator(settings: KothaSettings) {
+        if (languageIndicatorView != null) return
+        val indicator = LanguageIndicatorOverlay(
+            context = context,
+            onToggle = { onToggleLanguage() }
+        ).apply {
+            visibility = View.INVISIBLE
+            isClickable = false
+        }
+        indicator.updateSettings(settings)
+        languageIndicatorView = indicator
+
+        val indParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+        }
+        languageIndicatorParams = indParams
+
+        try {
+            windowManager.addView(indicator, indParams)
+            isLanguageIndicatorAttached = true
+            DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "LanguageIndicatorOverlay added to WindowManager")
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to add LanguageIndicatorOverlay: ${e.message}")
+        }
+    }
+
+    private fun updateLanguageIndicatorPosition() {
+        val indView = languageIndicatorView ?: return
+        val indParams = languageIndicatorParams ?: return
+        val orbParams = layoutParams ?: return
+        if (!isLanguageIndicatorAttached) return
+
+        val density = context.resources.displayMetrics.density
+        indView.measure(
+            View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(screenHeight, View.MeasureSpec.AT_MOST)
+        )
+        val indW = indView.measuredWidth
+        val indH = indView.measuredHeight
+        val orbW = orbParams.width
+        val orbH = orbParams.height
+
+        val orbCenterX = orbParams.x + (orbW / 2)
+        val idealX = orbCenterX - (indW / 2)
+        val margin = (8 * density).toInt()
+        val spacing = (6 * density).toInt() // Clear vertical spacing just above the orb
+        indParams.x = idealX.coerceIn(margin, (screenWidth - indW - margin).coerceAtLeast(margin))
+
+        // Position strictly above the main floating button orb
+        val idealY = orbParams.y - indH - spacing
+
+        // If the Orb is dragged too close to the top status bar, flip below the Orb
+        indParams.y = if (idealY < (28 * density).toInt()) {
+            orbParams.y + orbH + spacing
+        } else {
+            idealY
+        }
+
+        try {
+            windowManager.updateViewLayout(indView, indParams)
+        } catch (ignored: Exception) {}
     }
 
     private fun setupCaptionBubble(settings: KothaSettings) {
@@ -181,11 +267,12 @@ class OrbWindowManager(
         val capView = captionBubbleView ?: return
         val capParams = captionLayoutParams ?: return
         val orbParams = layoutParams ?: return
-        val settings = settingsRepository.cachedSettings
         if (!isCaptionAttached) return
 
         val density = context.resources.displayMetrics.density
-        val margin = (12 * density).toInt()
+        val margin = (10 * density).toInt()
+        val horizontalGap = (8 * density).toInt()
+        val spacing = (6 * density).toInt()
 
         capView.measure(
             View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
@@ -196,33 +283,25 @@ class OrbWindowManager(
         val orbW = orbParams.width
         val orbH = orbParams.height
 
-        when (settings.captionBubblePosition) {
-            CaptionBubblePosition.TOP_BANNER -> {
-                capParams.x = ((screenWidth - capW) / 2).coerceAtLeast(margin)
-                capParams.y = (36 * density).toInt()
-            }
-            CaptionBubblePosition.ABOVE_ORB -> {
-                val idealX = orbParams.x + (orbW / 2) - (capW / 2)
-                capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
-                val idealY = orbParams.y - capH - (10 * density).toInt()
-                capParams.y = if (idealY < (30 * density).toInt()) {
-                    // Too close to top screen edge, flip to below orb
-                    orbParams.y + orbH + (10 * density).toInt()
-                } else {
-                    idealY
-                }
-            }
-            CaptionBubblePosition.BELOW_ORB -> {
-                val idealX = orbParams.x + (orbW / 2) - (capW / 2)
-                capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
-                val idealY = orbParams.y + orbH + (10 * density).toInt()
-                capParams.y = if (idealY + capH > screenHeight - (60 * density).toInt()) {
-                    // Too close to bottom screen edge, flip to above orb
-                    orbParams.y - capH - (10 * density).toInt()
-                } else {
-                    idealY
-                }
-            }
+        val orbCenterX = orbParams.x + (orbW / 2)
+
+        // Adaptive horizontal placement beside the Orb:
+        // When Orb is on right side -> caption text appears to its left
+        // When Orb is on left side -> caption text appears to its right
+        if (orbCenterX >= screenWidth / 2) {
+            val idealX = orbParams.x - capW - horizontalGap
+            capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+        } else {
+            val idealX = orbParams.x + orbW + horizontalGap
+            capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+        }
+
+        // Live text transcription strip placed just above the horizontal line of the main floating button orb
+        val idealY = orbParams.y - capH - spacing
+        capParams.y = if (idealY < (28 * density).toInt()) {
+            orbParams.y + orbH + spacing
+        } else {
+            idealY
         }
 
         try {
@@ -254,17 +333,41 @@ class OrbWindowManager(
                 params.y = (normalizedY * (screenHeight - totalDimension)).toInt().coerceIn(0, (screenHeight - totalDimension).coerceAtLeast(0))
             }
 
+            languageIndicatorView?.updateSettings(settings)
             try {
                 windowManager.updateViewLayout(view, params)
             } catch (ignored: Exception) {}
+            updateLanguageIndicatorPosition()
             updateCaptionPosition()
+            syncLanguageIndicatorVisibility()
         }
     }
 
     fun updateState(state: DictationState) {
         floatingView?.dictationState = state
         captionBubbleView?.setDictationState(state)
+        isDictationRunning = when (state) {
+            is DictationState.Listening,
+            is DictationState.Starting,
+            is DictationState.Processing,
+            is DictationState.WaitingRestart,
+            is DictationState.Restarting -> true
+            else -> false
+        }
+        syncLanguageIndicatorVisibility()
         updateCaptionPosition()
+    }
+
+    private fun syncLanguageIndicatorVisibility() {
+        val indView = languageIndicatorView ?: return
+        val shouldShow = isDictationRunning && isOrbVisuallyVisible
+        try {
+            indView.visibility = if (shouldShow) View.VISIBLE else View.INVISIBLE
+            indView.isClickable = shouldShow
+            if (shouldShow) {
+                updateLanguageIndicatorPosition()
+            }
+        } catch (ignored: Exception) {}
     }
 
     fun updateAudioLevel(level: Float) {
@@ -302,12 +405,15 @@ class OrbWindowManager(
             VisibilityRule.ALWAYS -> true
         }
 
+        isOrbVisuallyVisible = shouldBeVisible
+
         // CRITICAL FIX: Overlay views attached to WindowManager must NEVER use View.GONE!
         // View.GONE causes ViewRootImpl to collapse to 0x0 and disassociates surface,
         // which throws fatal crash when toggled repeatedly. Use View.INVISIBLE and safe try/catch.
         try {
             view.visibility = if (shouldBeVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
         } catch (ignored: Exception) {}
+        syncLanguageIndicatorVisibility()
     }
 
     fun handleKeyboardVisibility(visible: Boolean, keyboardHeightPx: Int, settings: KothaSettings) {
@@ -345,6 +451,7 @@ class OrbWindowManager(
                     try {
                         windowManager.updateViewLayout(view, params)
                     } catch (ignored: Exception) {}
+                    updateLanguageIndicatorPosition()
                     updateCaptionPosition()
                 }
             }
@@ -386,7 +493,7 @@ class OrbWindowManager(
             context = context,
             settings = settings,
             transcriptPeek = floatingView?.captionText ?: "",
-            onSwitchLanguage = { /* Handled in service */ },
+            onSwitchLanguage = { onToggleLanguage() },
             onToggleMode = { onDoubleTap() },
             onUndo = { onUndo() },
             onPause = { onTogglePause() },
@@ -487,6 +594,13 @@ class OrbWindowManager(
             } catch (ignored: Exception) {}
             captionBubbleView = null
             isCaptionAttached = false
+        }
+        languageIndicatorView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (ignored: Exception) {}
+            languageIndicatorView = null
+            isLanguageIndicatorAttached = false
         }
         floatingView?.let {
             try {
