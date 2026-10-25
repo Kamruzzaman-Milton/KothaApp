@@ -229,11 +229,15 @@ class OrbWindowManager(
 
     private fun setupCaptionBubble(settings: KothaSettings) {
         if (captionBubbleView != null) return
-        val capView = CaptionBubbleOverlay(context, settings)
+        val capView = CaptionBubbleOverlay(context, settings, onUndo = { onUndo() })
         capView.onLayoutChanged = {
             updateCaptionPosition()
         }
         captionBubbleView = capView
+
+        val initialFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                if (!settings.tapCaptionToUndo) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0
 
         val capParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -244,9 +248,7 @@ class OrbWindowManager(
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            initialFlags,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -287,23 +289,49 @@ class OrbWindowManager(
 
         val orbCenterX = orbParams.x + (orbW / 2)
 
-        // Adaptive horizontal placement beside the Orb:
-        // When Orb is on right side -> caption text appears to its left
-        // When Orb is on left side -> caption text appears to its right
-        if (orbCenterX >= screenWidth / 2) {
-            val idealX = orbParams.x - capW - horizontalGap
-            capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
-        } else {
-            val idealX = orbParams.x + orbW + horizontalGap
-            capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+        when (settings.captionBubblePosition) {
+            CaptionBubblePosition.TOP_BANNER -> {
+                capParams.x = ((screenWidth - capW) / 2).coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+                capParams.y = (28 * density).toInt() + spacing.coerceAtLeast(0)
+            }
+            CaptionBubblePosition.BELOW_ORB -> {
+                if (orbCenterX >= screenWidth / 2) {
+                    val idealX = orbParams.x - capW - horizontalGap
+                    capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+                } else {
+                    val idealX = orbParams.x + orbW + horizontalGap
+                    capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+                }
+                val idealY = orbParams.y + orbH + spacing
+                capParams.y = if (idealY + capH > screenHeight - (48 * density).toInt()) {
+                    orbParams.y - capH - spacing
+                } else {
+                    idealY
+                }
+            }
+            CaptionBubblePosition.ABOVE_ORB -> {
+                if (orbCenterX >= screenWidth / 2) {
+                    val idealX = orbParams.x - capW - horizontalGap
+                    capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+                } else {
+                    val idealX = orbParams.x + orbW + horizontalGap
+                    capParams.x = idealX.coerceIn(margin, (screenWidth - capW - margin).coerceAtLeast(margin))
+                }
+                val idealY = orbParams.y - capH - spacing
+                capParams.y = if (idealY < (28 * density).toInt()) {
+                    orbParams.y + orbH + spacing
+                } else {
+                    idealY
+                }
+            }
         }
 
-        // Live text transcription strip placed just above the horizontal line of the main floating button orb
-        val idealY = orbParams.y - capH - spacing
-        capParams.y = if (idealY < (28 * density).toInt()) {
-            orbParams.y + orbH + spacing
+        // Toggle touchability: when invisible or zero width or disabled, don't capture touch
+        val shouldBeTouchable = settings.tapCaptionToUndo && capView.visibility == View.VISIBLE && capW > 0
+        if (shouldBeTouchable) {
+            capParams.flags = capParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         } else {
-            idealY
+            capParams.flags = capParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
 
         try {

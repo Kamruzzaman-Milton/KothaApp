@@ -1126,6 +1126,100 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
             }
         }
 
+        // Tap-to-Dismiss Caption to Undo
+        SettingToggleRow(
+            title = "Tap Bubble to Dismiss & Undo • বাবলে ট্যাপ করে মুছে ফেলা (Undo)",
+            description = "ভাসমান প্রিভিউ বাবলে ট্যাপ করলেই শেষ বলা কথা সাথে সাথে মুছে যাবে (Undo) এবং বাবলটি মিলিয়ে যাবে। Tap the live caption bubble anytime to immediately revert the last dictated phrase and dismiss the bubble.",
+            checked = settings.tapCaptionToUndo,
+            onCheckedChange = { checked ->
+                repo.updateSettings { s -> s.copy(tapCaptionToUndo = checked) }
+            }
+        )
+
+        // Caption Bubble Position and Style Customization in Section 04
+        SettingCard(
+            title = "Caption Bubble Position & Style • প্রিভিউ বাবলের অবস্থান ও শৈলী",
+            description = "কথা বলার সময় স্ক্রিনে ভেসে ওঠা টেক্সট বাবলের অবস্থান, আকৃতি ও রঙ পছন্দমতো নির্ধারণ করুন।"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Bubble Position (বাবলের অবস্থান):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkSegmentedControl(
+                    items = listOf(
+                        CaptionBubblePosition.ABOVE_ORB,
+                        CaptionBubblePosition.BELOW_ORB,
+                        CaptionBubblePosition.TOP_BANNER
+                    ),
+                    selectedItem = settings.captionBubblePosition,
+                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubblePosition = it) } },
+                    labelProvider = {
+                        when (it) {
+                            CaptionBubblePosition.ABOVE_ORB -> "Above Orb • উপরে"
+                            CaptionBubblePosition.BELOW_ORB -> "Below Orb • নিচে"
+                            CaptionBubblePosition.TOP_BANNER -> "Top Banner • শীর্ষে"
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Bubble Style (বাবলের শৈলী):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkSegmentedControl(
+                    items = listOf(
+                        CaptionBubbleStyle.TRANSLUCENT_DARK,
+                        CaptionBubbleStyle.SOLID_AMOLED,
+                        CaptionBubbleStyle.ACCENT_THEMED
+                    ),
+                    selectedItem = settings.captionBubbleStyle,
+                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubbleStyle = it) } },
+                    labelProvider = {
+                        when (it) {
+                            CaptionBubbleStyle.TRANSLUCENT_DARK -> "Dark Glass"
+                            CaptionBubbleStyle.SOLID_AMOLED -> "AMOLED Black"
+                            CaptionBubbleStyle.ACCENT_THEMED -> "Accent Tint"
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Bubble Text Size (বাবলের অক্ষরের আকার):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkSegmentedControl(
+                    items = listOf(
+                        CaptionBubbleSize.COMPACT,
+                        CaptionBubbleSize.MEDIUM,
+                        CaptionBubbleSize.LARGE,
+                        CaptionBubbleSize.EXTRA_LARGE
+                    ),
+                    selectedItem = settings.captionBubbleSize,
+                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubbleSize = it) } },
+                    labelProvider = {
+                        when (it) {
+                            CaptionBubbleSize.COMPACT -> "Small (14sp)"
+                            CaptionBubbleSize.MEDIUM -> "Medium (15sp)"
+                            CaptionBubbleSize.LARGE -> "Large (18sp)"
+                            CaptionBubbleSize.EXTRA_LARGE -> "XL (20sp)"
+                        }
+                    }
+                )
+            }
+        }
+
         SettingToggleRow(
             title = "Show Orb Only When Keyboard Appears",
             description = "কিবোর্ড আসলেই বাটন ভেসে উঠবে। The Orb automatically appears whenever the keyboard opens in any text field, and disappears when the keyboard closes.",

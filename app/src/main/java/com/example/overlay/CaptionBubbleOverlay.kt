@@ -25,7 +25,8 @@ import kotlin.math.min
 @SuppressLint("ViewConstructor")
 class CaptionBubbleOverlay(
     context: Context,
-    var settings: KothaSettings
+    var settings: KothaSettings,
+    private val onUndo: () -> Unit = {}
 ) : View(context) {
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -44,6 +45,12 @@ class CaptionBubbleOverlay(
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+
+    private val undoTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+        textAlign = Paint.Align.CENTER
     }
 
     private val cardRect = RectF()
@@ -86,8 +93,25 @@ class CaptionBubbleOverlay(
     init {
         visibility = INVISIBLE
         alpha = 0f
+        isClickable = true
+        isFocusable = false
+        setOnClickListener {
+            handleTapToUndo()
+        }
         updateStyles()
         dotPulseAnimator.start()
+    }
+
+    private fun handleTapToUndo() {
+        if (!settings.tapCaptionToUndo) return
+        val hasSpoken = partialText.isNotBlank() || finalUtterance.isNotBlank()
+        if (hasSpoken || dictationState !is DictationState.Idle) {
+            try {
+                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+            } catch (ignored: Exception) {}
+            onUndo()
+            clearAll()
+        }
     }
 
     override fun onDetachedFromWindow() {
@@ -107,6 +131,7 @@ class CaptionBubbleOverlay(
             CaptionBubbleSize.EXTRA_LARGE -> 20f
         }
         textPaint.textSize = spSize * density
+        undoTextPaint.textSize = (spSize + 1f) * density
         borderPaint.strokeWidth = 1.5f * density
 
         rebuildLayout()
@@ -277,10 +302,12 @@ class CaptionBubbleOverlay(
         val padY = (10 * density)
         val dotRadius = (5 * density) // 10dp dot
         val dotGap = (10 * density)
+        val hasSpeech = partialText.isNotBlank() || finalUtterance.isNotBlank()
+        val undoExtraWidth = if (settings.tapCaptionToUndo && hasSpeech) (26 * density) else 0f
 
-        val maxAllowedW = min((resources.displayMetrics.widthPixels - (96 * density).toInt()).coerceAtLeast(160), (300 * density).toInt())
+        val maxAllowedW = min((resources.displayMetrics.widthPixels - (96 * density).toInt()).coerceAtLeast(160), (320 * density).toInt())
         val contentWidth = layout.width.toFloat().coerceAtMost(maxLineWidth(layout))
-        val totalWidth = (contentWidth + padX * 2 + dotRadius * 2 + dotGap).toInt().coerceIn((100 * density).toInt(), maxAllowedW)
+        val totalWidth = (contentWidth + padX * 2 + dotRadius * 2 + dotGap + undoExtraWidth).toInt().coerceIn((100 * density).toInt(), maxAllowedW)
         val totalHeight = (layout.height + padY * 2).toInt().coerceAtLeast((36 * density).toInt())
 
         setMeasuredDimension(totalWidth, totalHeight)
@@ -359,5 +386,13 @@ class CaptionBubbleOverlay(
         canvas.translate(textStartX, textStartY)
         layout.draw(canvas)
         canvas.restore()
+
+        // 5. Draw Undo Icon ("↶") if tap-to-undo is enabled and speech is present
+        if (settings.tapCaptionToUndo && (hasPartial || finalUtterance.isNotBlank())) {
+            val undoX = width - (13f * density)
+            val undoY = height / 2f - ((undoTextPaint.descent() + undoTextPaint.ascent()) / 2f)
+            undoTextPaint.color = ColorUtils.setAlphaComponent(0xFFFFFFFF.toInt(), 190)
+            canvas.drawText("↶", undoX, undoY, undoTextPaint)
+        }
     }
 }

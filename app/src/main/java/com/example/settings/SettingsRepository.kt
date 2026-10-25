@@ -94,6 +94,9 @@ class SettingsRepository(context: Context) {
             CaptionBubbleStyle.valueOf(name)
         } catch (e: Exception) { base.captionBubbleStyle }
         val captionLingerMs = try { prefs.getLong(KEY_CAPTION_LINGER_MS, base.captionLingerDurationMs) } catch (e: Exception) { base.captionLingerDurationMs }
+        val tapCaptionToUndo = try { prefs.getBoolean(KEY_TAP_CAPTION_TO_UNDO, base.tapCaptionToUndo) } catch (e: Exception) { base.tapCaptionToUndo }
+        val voiceBtnOffset = try { prefs.getInt(KEY_VOICE_BTN_OFFSET, base.voiceButtonVerticalOffsetDp) } catch (e: Exception) { base.voiceButtonVerticalOffsetDp }
+        val transcriptionOffset = try { prefs.getInt(KEY_TRANSCRIPTION_OFFSET, base.transcriptionVerticalOffsetDp) } catch (e: Exception) { base.transcriptionVerticalOffsetDp }
 
         val orbSize = try {
             prefs.getInt(KEY_ORB_SIZE, base.orbSizeDp)
@@ -270,6 +273,9 @@ class SettingsRepository(context: Context) {
             captionMaxLines = captionMaxLines,
             captionBubbleStyle = captionStyle,
             captionLingerDurationMs = captionLingerMs,
+            tapCaptionToUndo = tapCaptionToUndo,
+            voiceButtonVerticalOffsetDp = voiceBtnOffset,
+            transcriptionVerticalOffsetDp = transcriptionOffset,
             orbSizeDp = orbSize,
             orbShape = orbShape,
             idleOpacity = idleOpacity,
@@ -369,6 +375,9 @@ class SettingsRepository(context: Context) {
             editor.putInt(KEY_CAPTION_MAX_LINES, updated.captionMaxLines)
             editor.putString(KEY_CAPTION_STYLE, updated.captionBubbleStyle.name)
             editor.putLong(KEY_CAPTION_LINGER_MS, updated.captionLingerDurationMs)
+            editor.putBoolean(KEY_TAP_CAPTION_TO_UNDO, updated.tapCaptionToUndo)
+            editor.putInt(KEY_VOICE_BTN_OFFSET, updated.voiceButtonVerticalOffsetDp)
+            editor.putInt(KEY_TRANSCRIPTION_OFFSET, updated.transcriptionVerticalOffsetDp)
 
             editor.putInt(KEY_ORB_SIZE, updated.orbSizeDp)
             editor.putString(KEY_ORB_SHAPE, updated.orbShape.name)
@@ -519,6 +528,9 @@ class SettingsRepository(context: Context) {
         private const val KEY_CAPTION_MAX_LINES = "caption_max_lines"
         private const val KEY_CAPTION_STYLE = "caption_style"
         private const val KEY_CAPTION_LINGER_MS = "caption_linger_ms"
+        private const val KEY_TAP_CAPTION_TO_UNDO = "tap_caption_to_undo"
+        private const val KEY_VOICE_BTN_OFFSET = "voice_btn_vertical_offset"
+        private const val KEY_TRANSCRIPTION_OFFSET = "transcription_vertical_offset"
 
         private const val KEY_ORB_SIZE = "orb_size"
         private const val KEY_ORB_SHAPE = "orb_shape"

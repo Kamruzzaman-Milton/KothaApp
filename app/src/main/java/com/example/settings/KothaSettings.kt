@@ -132,6 +132,7 @@ data class KothaSettings(
     val captionMaxLines: Int = 2,
     val captionBubbleStyle: CaptionBubbleStyle = CaptionBubbleStyle.TRANSLUCENT_DARK,
     val captionLingerDurationMs: Long = 1000L,
+    val tapCaptionToUndo: Boolean = true,
 
     // 04 Orb
     val orbSizeDp: Int = 28,
@@ -242,6 +243,7 @@ data class KothaSettings(
         root.put("captionMaxLines", captionMaxLines)
         root.put("captionBubbleStyle", captionBubbleStyle.name)
         root.put("captionLingerDurationMs", captionLingerDurationMs)
+        root.put("tapCaptionToUndo", tapCaptionToUndo)
 
         root.put("orbSizeDp", orbSizeDp)
         root.put("orbShape", orbShape.name)
@@ -354,6 +356,7 @@ data class KothaSettings(
                     CaptionBubbleStyle.valueOf(root.optString("captionBubbleStyle", base.captionBubbleStyle.name))
                 } catch (e: Exception) { base.captionBubbleStyle },
                 captionLingerDurationMs = root.optLong("captionLingerDurationMs", base.captionLingerDurationMs).coerceIn(500L, 5000L),
+                tapCaptionToUndo = root.optBoolean("tapCaptionToUndo", base.tapCaptionToUndo),
 
                 orbSizeDp = root.optInt("orbSizeDp", base.orbSizeDp),
                 orbShape = try {
