@@ -86,10 +86,10 @@ class ExampleUnitTest {
 
     @Test
     fun testVoiceCommands() {
-        val cmd = LanguageTools.checkVoiceCommand("নতুন লাইন", isBangla = true)
+        val cmd = LanguageTools.checkVoiceCommand("নতুন লাইন")
         assertTrue(cmd is LanguageTools.VoiceCommandResult.NewLine)
 
-        val undoCmd = LanguageTools.checkVoiceCommand("undo", isBangla = false)
+        val undoCmd = LanguageTools.checkVoiceCommand("undo")
         assertTrue(undoCmd is LanguageTools.VoiceCommandResult.Undo)
     }
 }

@@ -98,12 +98,6 @@ data class KothaSettings(
     val maxResults: Int = 1,
     val maskOffensiveWords: Boolean = false,
     val enableFormatting: Boolean = true,
-    val enableBilingualDictation: Boolean = true,
-    val secondaryLanguagesList: String = "en-IN,en-US",
-    val enableSmartLoanwords: Boolean = true,
-    val loanwordTargetScript: String = "ENGLISH",
-    val enableTechJargonLexicon: Boolean = true,
-    val customJargonJson: String = "",
 
     // 02 Mode
     val dictationMode: DictationMode = DictationMode.CONTINUOUS,
@@ -205,12 +199,6 @@ data class KothaSettings(
         root.put("maxResults", maxResults)
         root.put("maskOffensiveWords", maskOffensiveWords)
         root.put("enableFormatting", enableFormatting)
-        root.put("enableBilingualDictation", enableBilingualDictation)
-        root.put("secondaryLanguagesList", secondaryLanguagesList)
-        root.put("enableSmartLoanwords", enableSmartLoanwords)
-        root.put("loanwordTargetScript", loanwordTargetScript)
-        root.put("enableTechJargonLexicon", enableTechJargonLexicon)
-        root.put("customJargonJson", customJargonJson)
 
         root.put("dictationMode", dictationMode.name)
         root.put("restartDelayMs", restartDelayMs)
@@ -308,12 +296,6 @@ data class KothaSettings(
                 maxResults = root.optInt("maxResults", base.maxResults),
                 maskOffensiveWords = root.optBoolean("maskOffensiveWords", base.maskOffensiveWords),
                 enableFormatting = root.optBoolean("enableFormatting", base.enableFormatting),
-                enableBilingualDictation = root.optBoolean("enableBilingualDictation", base.enableBilingualDictation),
-                secondaryLanguagesList = root.optString("secondaryLanguagesList", base.secondaryLanguagesList),
-                enableSmartLoanwords = root.optBoolean("enableSmartLoanwords", base.enableSmartLoanwords),
-                loanwordTargetScript = root.optString("loanwordTargetScript", base.loanwordTargetScript),
-                enableTechJargonLexicon = root.optBoolean("enableTechJargonLexicon", base.enableTechJargonLexicon),
-                customJargonJson = root.optString("customJargonJson", base.customJargonJson),
 
                 dictationMode = try {
                     DictationMode.valueOf(root.optString("dictationMode", base.dictationMode.name))

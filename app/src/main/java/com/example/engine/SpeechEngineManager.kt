@@ -617,25 +617,6 @@ class SpeechEngineManager(
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
 
-            // Multi-Language / Bilingual Dictation (Bangla + English mixed speech)
-            if (settings.enableBilingualDictation) {
-                val secList = settings.secondaryLanguagesList
-                    .split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                if (secList.isNotEmpty()) {
-                    val secArrayList = ArrayList(secList)
-                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", secArrayList.toTypedArray())
-                    putStringArrayListExtra("android.speech.extra.ADDITIONAL_LANGUAGES", secArrayList)
-                    putStringArrayListExtra("android.speech.extras.ADDITIONAL_LANGUAGES", secArrayList)
-
-                    // Android 14+ (API 34) official language switch support
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", true)
-                    }
-                }
-            }
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 putExtra(RecognizerIntent.EXTRA_MASK_OFFENSIVE_WORDS, settings.maskOffensiveWords)
                 if (settings.preferSegmentedSession) {

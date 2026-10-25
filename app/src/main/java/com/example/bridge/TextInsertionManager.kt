@@ -156,11 +156,7 @@ class TextInsertionManager(
             autoPunctuate = settings.autoPunctuate,
             digitMode = digitMode,
             autoCapLatin = settings.autoCapitalizeLatin,
-            replacements = replacements,
-            enableLoanwords = settings.enableSmartLoanwords,
-            loanwordTargetScript = settings.loanwordTargetScript,
-            enableTechJargon = settings.enableTechJargonLexicon,
-            customJargonJson = settings.customJargonJson
+            replacements = replacements
         )
 
         insertTextInternal(
