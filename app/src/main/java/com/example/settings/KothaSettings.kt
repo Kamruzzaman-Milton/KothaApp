@@ -153,6 +153,8 @@ data class KothaSettings(
     val fixedScreenAnchor: String = "RIGHT_MIDDLE",
     val orbPositionX: Float = 0.90f,
     val orbPositionY: Float = 0.50f,
+    val voiceButtonVerticalOffsetDp: Int = 6,
+    val transcriptionVerticalOffsetDp: Int = 6,
 
     // Colors
     val idleColor: Long = 4279702802L,
@@ -260,6 +262,8 @@ data class KothaSettings(
         root.put("fixedScreenAnchor", fixedScreenAnchor)
         root.put("orbPositionX", orbPositionX.toDouble())
         root.put("orbPositionY", orbPositionY.toDouble())
+        root.put("voiceButtonVerticalOffsetDp", voiceButtonVerticalOffsetDp)
+        root.put("transcriptionVerticalOffsetDp", transcriptionVerticalOffsetDp)
 
         root.put("idleColor", idleColor)
         root.put("listeningColor", listeningColor)
@@ -378,6 +382,8 @@ data class KothaSettings(
                 fixedScreenAnchor = root.optString("fixedScreenAnchor", base.fixedScreenAnchor),
                 orbPositionX = root.optDouble("orbPositionX", base.orbPositionX.toDouble()).toFloat(),
                 orbPositionY = root.optDouble("orbPositionY", base.orbPositionY.toDouble()).toFloat(),
+                voiceButtonVerticalOffsetDp = root.optInt("voiceButtonVerticalOffsetDp", base.voiceButtonVerticalOffsetDp),
+                transcriptionVerticalOffsetDp = root.optInt("transcriptionVerticalOffsetDp", base.transcriptionVerticalOffsetDp),
 
                 idleColor = root.optLong("idleColor", base.idleColor),
                 listeningColor = root.optLong("listeningColor", base.listeningColor),

@@ -1072,6 +1072,60 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
             }
         }
 
+        // Voice Button & Transcription Vertical Spacing / Offset Card
+        SettingCard(
+            title = "Voice Button & Transcription Position • অবস্থান সমন্বয়",
+            description = "মূল ফ্লোটিং বাটন (Orb) থেকে ভাষা পরিবর্তন বাটন এবং লাইভ টেক্সট ট্রানস্ক্রিপশন স্ট্রিপের উল্লম্ব অবস্থান (কতটুকু উপরে বা নিচে থাকবে) নিয়ন্ত্রণ করুন।"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column {
+                    Text(
+                        text = "Voice Change Button Distance (ভাষা বাটনের দূরত্ব): ${settings.voiceButtonVerticalOffsetDp} dp",
+                        fontFamily = MonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = colors.textPrimary
+                    )
+                    Text(
+                        text = "মূল বাটন থেকে ভাষা পরিবর্তন বাটনের উল্লম্ব ব্যবধান (DP)। মান বৃদ্ধি করলে আরও উপরে উঠবে।",
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textMuted
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    InkRulerSlider(
+                        value = settings.voiceButtonVerticalOffsetDp.toFloat(),
+                        onValueChange = { repo.updateSettings { s -> s.copy(voiceButtonVerticalOffsetDp = it.toInt()) } },
+                        valueRange = -20f..80f,
+                        unitLabel = "dp"
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = "Transcription Strip Distance (ট্রানস্ক্রিপশন স্ট্রিপের দূরত্ব): ${settings.transcriptionVerticalOffsetDp} dp",
+                        fontFamily = MonoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = colors.textPrimary
+                    )
+                    Text(
+                        text = "মূল বাটন থেকে লাইভ টেক্সট ট্রানস্ক্রিপশন স্ট্রিপের উল্লম্ব ব্যবধান (DP)। মান বৃদ্ধি করলে আরও উপরে উঠবে।",
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textMuted
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    InkRulerSlider(
+                        value = settings.transcriptionVerticalOffsetDp.toFloat(),
+                        onValueChange = { repo.updateSettings { s -> s.copy(transcriptionVerticalOffsetDp = it.toInt()) } },
+                        valueRange = -20f..80f,
+                        unitLabel = "dp"
+                    )
+                }
+            }
+        }
+
         SettingToggleRow(
             title = "Show Orb Only When Keyboard Appears",
             description = "কিবোর্ড আসলেই বাটন ভেসে উঠবে। The Orb automatically appears whenever the keyboard opens in any text field, and disappears when the keyboard closes.",

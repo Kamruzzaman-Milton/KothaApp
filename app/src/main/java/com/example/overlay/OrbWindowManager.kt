@@ -208,10 +208,11 @@ class OrbWindowManager(
         val orbCenterX = orbParams.x + (orbW / 2)
         val idealX = orbCenterX - (indW / 2)
         val margin = (8 * density).toInt()
-        val spacing = (6 * density).toInt() // Clear vertical spacing just above the orb
+        val settings = settingsRepository.cachedSettings
+        val spacing = (settings.voiceButtonVerticalOffsetDp * density).toInt()
         indParams.x = idealX.coerceIn(margin, (screenWidth - indW - margin).coerceAtLeast(margin))
 
-        // Position strictly above the main floating button orb
+        // Position strictly above the main floating button orb (adjusted by offset)
         val idealY = orbParams.y - indH - spacing
 
         // If the Orb is dragged too close to the top status bar, flip below the Orb
@@ -272,7 +273,8 @@ class OrbWindowManager(
         val density = context.resources.displayMetrics.density
         val margin = (10 * density).toInt()
         val horizontalGap = (8 * density).toInt()
-        val spacing = (6 * density).toInt()
+        val settings = settingsRepository.cachedSettings
+        val spacing = (settings.transcriptionVerticalOffsetDp * density).toInt()
 
         capView.measure(
             View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
