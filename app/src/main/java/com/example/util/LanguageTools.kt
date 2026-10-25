@@ -595,51 +595,7 @@ object LanguageTools {
         "কোড" to "code",
         "ভেরিফিকেশন" to "verification",
         "ওটিপি" to "OTP",
-        "পিন" to "PIN",
-
-        // Conversational, Bilingual & Status terms
-        "বাইলিঙ্গল" to "bilingual",
-        "বাইলিঙ্গুয়াল" to "bilingual",
-        "ডিক্টেশন" to "dictation",
-        "ডিকটেশন" to "dictation",
-        "ইজ" to "is",
-        "নট" to "not",
-        "ওয়ার্কিং" to "working",
-        "ওয়ার্কিং" to "working",
-        "ওয়ার্ক" to "work",
-        "ওয়ার্ক" to "work",
-        "কারেক্টলি" to "correctly",
-        "কারেক্ট" to "correct",
-        "প্রপারলি" to "properly",
-        "সাকসেসফুলি" to "successfully",
-        "পারফেক্টলি" to "perfectly",
-        "ইমপসিবল" to "impossible",
-        "পসিবল" to "possible",
-        "একচুয়ালি" to "actually",
-        "একচুয়ালি" to "actually",
-        "রিয়েলি" to "really",
-        "রিয়েলি" to "really",
-        "ভেরি" to "very",
-        "মাচ" to "much",
-        "মোর" to "more",
-        "সো" to "so",
-        "প্লিজ" to "please",
-        "থ্যাংকস" to "thanks",
-        "থ্যাঙ্কস" to "thanks",
-        "সরি" to "sorry",
-        "হ্যালো" to "hello",
-        "হাই" to "hi",
-        "গুড" to "good",
-        "ব্যাড" to "bad",
-        "রাইট" to "right",
-        "রং" to "wrong",
-        "প্রবলেম" to "problem",
-        "সলভ" to "solve",
-        "ফিক্স" to "fix",
-        "টেস্ট" to "test",
-        "চেক" to "check",
-        "কমপ্লিট" to "complete",
-        "ইনকমপ্লিট" to "incomplete"
+        "পিন" to "PIN"
     )
 
     val defaultTechJargonMap: Map<String, String> = mapOf(
@@ -721,25 +677,6 @@ object LanguageTools {
         return result
     }
 
-    val multiWordLoanwordPhrases: List<Pair<Regex, String>> = listOf(
-        Regex("বাই\\s+লিঙ্গল", RegexOption.IGNORE_CASE) to "bilingual",
-        Regex("বাই\\s+লিঙ্গুয়াল", RegexOption.IGNORE_CASE) to "bilingual",
-        Regex("থ্যাঙ্ক\\s+ইউ|থ্যাংক\\s+ইউ", RegexOption.IGNORE_CASE) to "thank you",
-        Regex("লগ\\s+ইন", RegexOption.IGNORE_CASE) to "log in",
-        Regex("সাইন\\s+আপ", RegexOption.IGNORE_CASE) to "sign up",
-        Regex("সাইন\\s+ইন", RegexOption.IGNORE_CASE) to "sign in",
-        Regex("টার্ন\\s+অফ", RegexOption.IGNORE_CASE) to "turn off",
-        Regex("টার্ন\\s+অন", RegexOption.IGNORE_CASE) to "turn on",
-        Regex("হাউ\\s+আর\\s+ইউ", RegexOption.IGNORE_CASE) to "how are you",
-        Regex("গুড\\s+মর্নিং", RegexOption.IGNORE_CASE) to "good morning",
-        Regex("গুড\\s+নাইট", RegexOption.IGNORE_CASE) to "good night",
-        Regex("গুড\\s+ইভনিং", RegexOption.IGNORE_CASE) to "good evening",
-        Regex("হোয়াট\\s+ইজ|হোয়াট\\s+ইজ", RegexOption.IGNORE_CASE) to "what is",
-        Regex("দিস\\s+ইজ", RegexOption.IGNORE_CASE) to "this is",
-        Regex("দ্যাট\\s+ইজ", RegexOption.IGNORE_CASE) to "that is",
-        Regex("ইজ\\s+নট", RegexOption.IGNORE_CASE) to "is not"
-    )
-
     fun applySmartLoanwordsAndJargon(
         text: String,
         enableLoanwords: Boolean,
@@ -750,58 +687,52 @@ object LanguageTools {
         if (!enableLoanwords && !enableTechJargon && customJargonJson.isBlank()) return text
         if (loanwordTargetScript.equals("BANGLA", ignoreCase = true) && !enableTechJargon) return text
 
-        // 1. Primary: Native Offline Lexicon Database (Google Dakshina + OmicronLab Avro + OpenBangla)
-        return try {
-            com.example.engine.BilingualLexiconManager.processBilingualText(
-                text = text,
+        val customMap = parseCustomJargonJson(customJargonJson)
+
+        // Split text into tokens and delimiters while preserving spaces and punctuation
+        val tokens = text.split(Regex("(?<=\\s)|(?=\\s)"))
+        val sb = StringBuilder()
+
+        for (token in tokens) {
+            if (token.isBlank()) {
+                sb.append(token)
+                continue
+            }
+
+            // Extract surrounding punctuation
+            var prefixPunct = ""
+            var coreWord = token
+            var suffixPunct = ""
+
+            val prefixMatch = Regex("^[।,?!;:\"'()\\[\\]{}—–\\-]+").find(coreWord)
+            if (prefixMatch != null) {
+                prefixPunct = prefixMatch.value
+                coreWord = coreWord.substring(prefixPunct.length)
+            }
+
+            val suffixMatch = Regex("[।,?!;:\"'()\\[\\]{}—–\\-]+$").find(coreWord)
+            if (suffixMatch != null) {
+                suffixPunct = suffixMatch.value
+                coreWord = coreWord.substring(0, coreWord.length - suffixPunct.length)
+            }
+
+            if (coreWord.isEmpty()) {
+                sb.append(token)
+                continue
+            }
+
+            // Try resolving word with morphological suffixes
+            val replaced = resolveWordWithSuffixes(
+                word = coreWord,
                 enableLoanwords = enableLoanwords,
-                loanwordTargetScript = loanwordTargetScript,
                 enableTechJargon = enableTechJargon,
-                customJargonJson = customJargonJson
+                customMap = customMap
             )
-        } catch (e: Exception) {
-            // Fallback to in-memory rules if database is unready
-            val customMap = parseCustomJargonJson(customJargonJson)
-            var phraseProcessed = text
-            if (enableLoanwords) {
-                for ((regex, replacement) in multiWordLoanwordPhrases) {
-                    phraseProcessed = phraseProcessed.replace(regex, replacement)
-                }
-            }
-            val tokens = phraseProcessed.split(Regex("(?<=\\s)|(?=\\s)"))
-            val sb = StringBuilder()
-            for (token in tokens) {
-                if (token.isBlank()) {
-                    sb.append(token)
-                    continue
-                }
-                var prefixPunct = ""
-                var coreWord = token
-                var suffixPunct = ""
-                val prefixMatch = Regex("^[।,?!;:\"'()\\[\\]{}—–\\-]+").find(coreWord)
-                if (prefixMatch != null) {
-                    prefixPunct = prefixMatch.value
-                    coreWord = coreWord.substring(prefixPunct.length)
-                }
-                val suffixMatch = Regex("[।,?!;:\"'()\\[\\]{}—–\\-]+$").find(coreWord)
-                if (suffixMatch != null) {
-                    suffixPunct = suffixMatch.value
-                    coreWord = coreWord.substring(0, coreWord.length - suffixPunct.length)
-                }
-                if (coreWord.isEmpty()) {
-                    sb.append(token)
-                    continue
-                }
-                val replaced = resolveWordWithSuffixes(
-                    word = coreWord,
-                    enableLoanwords = enableLoanwords,
-                    enableTechJargon = enableTechJargon,
-                    customMap = customMap
-                )
-                sb.append(prefixPunct).append(replaced).append(suffixPunct)
-            }
-            sb.toString()
+
+            sb.append(prefixPunct).append(replaced).append(suffixPunct)
         }
+
+        return sb.toString()
     }
 
     private fun resolveWordWithSuffixes(

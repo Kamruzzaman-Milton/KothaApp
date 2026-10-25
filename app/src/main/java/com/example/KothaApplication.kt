@@ -24,9 +24,6 @@ class KothaApplication : Application() {
         settingsRepository = SettingsRepository(this)
         accessibilityKeeper = AccessibilityKeeper(this, settingsRepository)
 
-        // Initialize native offline bilingual lexicon database (Dakshina + Avro + OpenBangla)
-        com.example.engine.BilingualLexiconManager.initialize(this)
-
         DiagnosticsLog.log(
             DiagnosticsLog.Category.SYSTEM,
             "KothaApplication initialized"

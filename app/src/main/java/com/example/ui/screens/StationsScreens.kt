@@ -286,33 +286,6 @@ private fun Station01Voice(settings: KothaSettings, repo: SettingsRepository) {
                     onCheckedChange = { repo.updateSettings { s -> s.copy(enableSmartLoanwords = it) } }
                 )
 
-                // Native Bundled Database Badge
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(colors.accent.copy(alpha = 0.08f))
-                        .border(1.dp, colors.accent, RoundedCornerShape(2.dp))
-                        .padding(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "✓ Native Offline Database Bundled",
-                                fontFamily = DisplayFont,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = colors.accent
-                            )
-                        }
-                        Text(
-                            text = "Google Dakshina + OmicronLab Avro + OpenBangla এর ২৯,০০০+ দ্বিভাষিক শব্দকোষ ও বাক্যাংশ অ্যাপের ভেতরে সরাসরি ইন্টিগ্রেট করা হয়েছে। আলাদা করে কোনো কিছু ডাউনলোড করতে হবে না।",
-                            fontFamily = MonoFont,
-                            fontSize = 10.sp,
-                            color = colors.textPrimary
-                        )
-                    }
-                }
-
                 // Explanation Box for Beginners
                 Box(
                     modifier = Modifier
