@@ -60,7 +60,7 @@ data class StationIndexItem(
 )
 
 val stationIndexList = listOf(
-    StationIndexItem("01", "Voice", "Speech engines, Bangla variants, BCP-47, and offline options", listOf("language", "voice", "bangla", "bcp47", "engine", "google", "offline", "offensive")),
+    StationIndexItem("01", "Voice", "Bilingual code-switching, smart loanword conversion, tech jargon & speech engines", listOf("language", "voice", "bangla", "english", "bilingual", "codeswitch", "loanwords", "jargon", "bcp47", "engine", "google", "offline", "offensive")),
     StationIndexItem("02", "Mode", "Continuous dictation vs Pause-and-restart timing parameters", listOf("mode", "continuous", "pause", "restart", "silence", "delay", "timing")),
     StationIndexItem("03", "Insertion", "Live partials, Accessibility set-text, clipboard, and cursor following", listOf("insertion", "partial", "clipboard", "cursor", "paste", "password", "caption")),
     StationIndexItem("04", "Orb", "Floating button sizing, shapes, canvas rings, colors, and keyboard appearance trigger", listOf("orb", "button", "size", "shape", "color", "ring", "opacity", "gesture", "snap", "keyboard", "appear", "trigger", "visibility")),

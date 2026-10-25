@@ -608,13 +608,44 @@ class SpeechEngineManager(
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, settings.maxResults.coerceIn(1, 5))
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
 
-            if (settings.preferOffline) {
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Multi-Language / Bilingual Dictation (Bangla + English mixed speech)
+            if (settings.enableBilingualDictation) {
+                val secList = settings.secondaryLanguagesList
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+
+                if (secList.isNotEmpty()) {
+                    val secArray = secList.toTypedArray()
+                    val allLangs = (listOf(lang) + secList).distinct()
+                    val allArray = allLangs.toTypedArray()
+
+                    // Google Speech Services multi-language array extras (both String[] and ArrayList)
+                    putExtra("android.speech.extra.ADDITIONAL_LANGUAGES", secArray)
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", secArray)
+                    putStringArrayListExtra("android.speech.extra.ADDITIONAL_LANGUAGES", ArrayList(secList))
+                    putStringArrayListExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", ArrayList(secList))
+
+                    // Language detection and biasing
+                    putExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES", allArray)
+                    putStringArrayListExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES", ArrayList(allLangs))
+                    putExtra("android.speech.extra.ENABLE_LANGUAGE_DETECTION", true)
+
+                    // Android 14+ (API 34) official language switch support
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", "android.speech.extra.LANGUAGE_SWITCH_BALANCED")
+                        putStringArrayListExtra("android.speech.extra.LANGUAGE_SWITCH_ALLOWED_LANGUAGES", ArrayList(allLangs))
+                    }
+                }
+            } else {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
+                if (settings.preferOffline) {
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

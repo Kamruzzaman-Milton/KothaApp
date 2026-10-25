@@ -490,15 +490,406 @@ object LanguageTools {
         return sb.toString()
     }
 
+    val commonBanglaInflectionSuffixes = listOf(
+        "গুলোতে", "গুলোকে", "গুলোর", "গুলো",
+        "গুলিতে", "গুলিকে", "গুলির", "গুলি",
+        "টার", "টাতে", "টিতে", "টির", "টা", "টি",
+        "দেরকে", "দের", "য়ের", "য়ের", "কে", "তে",
+        "এর", "এ", "য়ে", "য়ে", "র"
+    )
+
+    val defaultSmartLoanwordsMap: Map<String, String> = mapOf(
+        "মিটিং" to "meeting",
+        "প্রেজেন্টেশন" to "presentation",
+        "ল্যাপটপ" to "laptop",
+        "মোবাইল" to "mobile",
+        "ফোন" to "phone",
+        "কল" to "call",
+        "মেসেজ" to "message",
+        "মেইল" to "mail",
+        "ইমেইল" to "email",
+        "ফাইল" to "file",
+        "ডকুমেন্ট" to "document",
+        "প্রজেক্ট" to "project",
+        "রিপোর্ট" to "report",
+        "আপডেট" to "update",
+        "ডাউনলোড" to "download",
+        "আপলোড" to "upload",
+        "অনলাইন" to "online",
+        "অফলাইন" to "offline",
+        "ক্লাস" to "class",
+        "টিম" to "team",
+        "বস" to "boss",
+        "ম্যানেজার" to "manager",
+        "ক্লায়েন্ট" to "client",
+        "কাস্টমার" to "customer",
+        "কোম্পানি" to "company",
+        "অফিস" to "office",
+        "লিংক" to "link",
+        "ভিডিও" to "video",
+        "অডিও" to "audio",
+        "স্ক্রিন" to "screen",
+        "পাসওয়ার্ড" to "password",
+        "লগইন" to "login",
+        "সাইনআপ" to "signup",
+        "ওয়েবসাইট" to "website",
+        "অ্যাপ" to "app",
+        "অ্যাপ্লিকেশন" to "application",
+        "সফটওয়্যার" to "software",
+        "হার্ডওয়্যার" to "hardware",
+        "সার্ভার" to "server",
+        "ডাটা" to "data",
+        "ইন্টারনেট" to "internet",
+        "ওয়াইফাই" to "wifi",
+        "কানেকশন" to "connection",
+        "কম্পিউটার" to "computer",
+        "ডেস্কটপ" to "desktop",
+        "ক্যামেরা" to "camera",
+        "চার্জার" to "charger",
+        "ব্যাটারি" to "battery",
+        "মার্কেট" to "market",
+        "শপ" to "shop",
+        "বিল" to "bill",
+        "পেমেন্ট" to "payment",
+        "ক্যাশ" to "cash",
+        "কার্ড" to "card",
+        "ব্যাংক" to "bank",
+        "অ্যাকাউন্ট" to "account",
+        "ব্যালেন্স" to "balance",
+        "নাম্বার" to "number",
+        "অ্যাড্রেস" to "address",
+        "লোকেশন" to "location",
+        "ম্যাপ" to "map",
+        "বাইক" to "bike",
+        "ড্রাইভ" to "drive",
+        "রাইড" to "ride",
+        "টিকেট" to "ticket",
+        "বুকিং" to "booking",
+        "হোটেল" to "hotel",
+        "রুম" to "room",
+        "ডাক্তার" to "doctor",
+        "হাসপাতাল" to "hospital",
+        "মেডিসিন" to "medicine",
+        "প্রেসক্রিপশন" to "prescription",
+        "ক্লিনিক" to "clinic",
+        "স্কুল" to "school",
+        "কলেজ" to "college",
+        "ভার্সিটি" to "varsity",
+        "ইউনিভার্সিটি" to "university",
+        "এক্সাম" to "exam",
+        "রেজাল্ট" to "result",
+        "সার্টিফিকেট" to "certificate",
+        "জব" to "job",
+        "ইন্টারভিউ" to "interview",
+        "স্যালারি" to "salary",
+        "অফার" to "offer",
+        "লেটার" to "letter",
+        "নোটিশ" to "notice",
+        "অর্ডার" to "order",
+        "ডেলিভারি" to "delivery",
+        "কুরিয়ার" to "courier",
+        "প্যাকেট" to "packet",
+        "পার্সেল" to "parcel",
+        "ডিসকাউন্ট" to "discount",
+        "কুপন" to "coupon",
+        "কোড" to "code",
+        "ভেরিফিকেশন" to "verification",
+        "ওটিপি" to "OTP",
+        "পিন" to "PIN",
+
+        // Conversational, Bilingual & Status terms
+        "বাইলিঙ্গল" to "bilingual",
+        "বাইলিঙ্গুয়াল" to "bilingual",
+        "ডিক্টেশন" to "dictation",
+        "ডিকটেশন" to "dictation",
+        "ইজ" to "is",
+        "নট" to "not",
+        "ওয়ার্কিং" to "working",
+        "ওয়ার্কিং" to "working",
+        "ওয়ার্ক" to "work",
+        "ওয়ার্ক" to "work",
+        "কারেক্টলি" to "correctly",
+        "কারেক্ট" to "correct",
+        "প্রপারলি" to "properly",
+        "সাকসেসফুলি" to "successfully",
+        "পারফেক্টলি" to "perfectly",
+        "ইমপসিবল" to "impossible",
+        "পসিবল" to "possible",
+        "একচুয়ালি" to "actually",
+        "একচুয়ালি" to "actually",
+        "রিয়েলি" to "really",
+        "রিয়েলি" to "really",
+        "ভেরি" to "very",
+        "মাচ" to "much",
+        "মোর" to "more",
+        "সো" to "so",
+        "প্লিজ" to "please",
+        "থ্যাংকস" to "thanks",
+        "থ্যাঙ্কস" to "thanks",
+        "সরি" to "sorry",
+        "হ্যালো" to "hello",
+        "হাই" to "hi",
+        "গুড" to "good",
+        "ব্যাড" to "bad",
+        "রাইট" to "right",
+        "রং" to "wrong",
+        "প্রবলেম" to "problem",
+        "সলভ" to "solve",
+        "ফিক্স" to "fix",
+        "টেস্ট" to "test",
+        "চেক" to "check",
+        "কমপ্লিট" to "complete",
+        "ইনকমপ্লিট" to "incomplete"
+    )
+
+    val defaultTechJargonMap: Map<String, String> = mapOf(
+        "কুবারনেটিস" to "Kubernetes",
+        "গিটহাব" to "GitHub",
+        "গিট" to "Git",
+        "গিটল্যাব" to "GitLab",
+        "ডকার" to "Docker",
+        "এপিআই" to "API",
+        "রেস্ট" to "REST",
+        "জেসন" to "JSON",
+        "ডাটাবেস" to "Database",
+        "এসকিউএল" to "SQL",
+        "পোস্টগ্রেস" to "PostgreSQL",
+        "মাইএসকিউএল" to "MySQL",
+        "মঙ্গোডিবি" to "MongoDB",
+        "রেডিস" to "Redis",
+        "পাইথন" to "Python",
+        "জাভাস্ক্রিপ্ট" to "JavaScript",
+        "টাইপস্ক্রিপ্ট" to "TypeScript",
+        "কোটলিন" to "Kotlin",
+        "জাভা" to "Java",
+        "সুইফট" to "Swift",
+        "ফ্লাটার" to "Flutter",
+        "রিঅ্যাক্ট" to "React",
+        "নেক্সটজেএস" to "Next.js",
+        "অ্যান্ড্রয়েড" to "Android",
+        "আইওএস" to "iOS",
+        "ক্লাউড" to "Cloud",
+        "এডাব্লিউএস" to "AWS",
+        "জিসিপি" to "GCP",
+        "অ্যাজুর" to "Azure",
+        "লিনাক্স" to "Linux",
+        "উবুন্টু" to "Ubuntu",
+        "উইন্ডোজ" to "Windows",
+        "ম্যাকবুক" to "MacBook",
+        "টার্মিনাল" to "Terminal",
+        "কমান্ড" to "Command",
+        "ফাংশন" to "Function",
+        "ভ্যারিয়েবল" to "Variable",
+        "বাগ" to "Bug",
+        "ডিবাগ" to "Debug",
+        "টেস্টিং" to "Testing",
+        "ডিপ্লয়" to "Deploy",
+        "ডিপ্লয়মেন্ট" to "Deployment",
+        "কম্পাইল" to "Compile",
+        "বিল্ড" to "Build",
+        "ব্যাকএন্ড" to "Backend",
+        "ফ্রন্টএন্ড" to "Frontend",
+        "ফুলস্ট্যাক" to "Fullstack",
+        "সার্ভারলেস" to "Serverless",
+        "মাইক্রোসার্ভিস" to "Microservices",
+        "আর্কিটেকচার" to "Architecture"
+    )
+
+    fun parseCustomJargonJson(jsonStr: String): Map<String, String> {
+        if (jsonStr.isBlank()) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        try {
+            val obj = org.json.JSONObject(jsonStr)
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                result[k.trim()] = obj.optString(k).trim()
+            }
+        } catch (ignored: Exception) {
+            // Also support comma-separated or colon-separated lines
+            jsonStr.lines().forEach { line ->
+                val parts = line.split(":", "=", "->")
+                if (parts.size >= 2) {
+                    val k = parts[0].trim()
+                    val v = parts[1].trim()
+                    if (k.isNotEmpty() && v.isNotEmpty()) {
+                        result[k] = v
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    val multiWordLoanwordPhrases: List<Pair<Regex, String>> = listOf(
+        Regex("বাই\\s+লিঙ্গল", RegexOption.IGNORE_CASE) to "bilingual",
+        Regex("বাই\\s+লিঙ্গুয়াল", RegexOption.IGNORE_CASE) to "bilingual",
+        Regex("থ্যাঙ্ক\\s+ইউ|থ্যাংক\\s+ইউ", RegexOption.IGNORE_CASE) to "thank you",
+        Regex("লগ\\s+ইন", RegexOption.IGNORE_CASE) to "log in",
+        Regex("সাইন\\s+আপ", RegexOption.IGNORE_CASE) to "sign up",
+        Regex("সাইন\\s+ইন", RegexOption.IGNORE_CASE) to "sign in",
+        Regex("টার্ন\\s+অফ", RegexOption.IGNORE_CASE) to "turn off",
+        Regex("টার্ন\\s+অন", RegexOption.IGNORE_CASE) to "turn on",
+        Regex("হাউ\\s+আর\\s+ইউ", RegexOption.IGNORE_CASE) to "how are you",
+        Regex("গুড\\s+মর্নিং", RegexOption.IGNORE_CASE) to "good morning",
+        Regex("গুড\\s+নাইট", RegexOption.IGNORE_CASE) to "good night",
+        Regex("গুড\\s+ইভনিং", RegexOption.IGNORE_CASE) to "good evening",
+        Regex("হোয়াট\\s+ইজ|হোয়াট\\s+ইজ", RegexOption.IGNORE_CASE) to "what is",
+        Regex("দিস\\s+ইজ", RegexOption.IGNORE_CASE) to "this is",
+        Regex("দ্যাট\\s+ইজ", RegexOption.IGNORE_CASE) to "that is",
+        Regex("ইজ\\s+নট", RegexOption.IGNORE_CASE) to "is not"
+    )
+
+    fun applySmartLoanwordsAndJargon(
+        text: String,
+        enableLoanwords: Boolean,
+        loanwordTargetScript: String,
+        enableTechJargon: Boolean,
+        customJargonJson: String
+    ): String {
+        if (!enableLoanwords && !enableTechJargon && customJargonJson.isBlank()) return text
+        if (loanwordTargetScript.equals("BANGLA", ignoreCase = true) && !enableTechJargon) return text
+
+        // 1. Primary: Native Offline Lexicon Database (Google Dakshina + OmicronLab Avro + OpenBangla)
+        return try {
+            com.example.engine.BilingualLexiconManager.processBilingualText(
+                text = text,
+                enableLoanwords = enableLoanwords,
+                loanwordTargetScript = loanwordTargetScript,
+                enableTechJargon = enableTechJargon,
+                customJargonJson = customJargonJson
+            )
+        } catch (e: Exception) {
+            // Fallback to in-memory rules if database is unready
+            val customMap = parseCustomJargonJson(customJargonJson)
+            var phraseProcessed = text
+            if (enableLoanwords) {
+                for ((regex, replacement) in multiWordLoanwordPhrases) {
+                    phraseProcessed = phraseProcessed.replace(regex, replacement)
+                }
+            }
+            val tokens = phraseProcessed.split(Regex("(?<=\\s)|(?=\\s)"))
+            val sb = StringBuilder()
+            for (token in tokens) {
+                if (token.isBlank()) {
+                    sb.append(token)
+                    continue
+                }
+                var prefixPunct = ""
+                var coreWord = token
+                var suffixPunct = ""
+                val prefixMatch = Regex("^[।,?!;:\"'()\\[\\]{}—–\\-]+").find(coreWord)
+                if (prefixMatch != null) {
+                    prefixPunct = prefixMatch.value
+                    coreWord = coreWord.substring(prefixPunct.length)
+                }
+                val suffixMatch = Regex("[।,?!;:\"'()\\[\\]{}—–\\-]+$").find(coreWord)
+                if (suffixMatch != null) {
+                    suffixPunct = suffixMatch.value
+                    coreWord = coreWord.substring(0, coreWord.length - suffixPunct.length)
+                }
+                if (coreWord.isEmpty()) {
+                    sb.append(token)
+                    continue
+                }
+                val replaced = resolveWordWithSuffixes(
+                    word = coreWord,
+                    enableLoanwords = enableLoanwords,
+                    enableTechJargon = enableTechJargon,
+                    customMap = customMap
+                )
+                sb.append(prefixPunct).append(replaced).append(suffixPunct)
+            }
+            sb.toString()
+        }
+    }
+
+    private fun resolveWordWithSuffixes(
+        word: String,
+        enableLoanwords: Boolean,
+        enableTechJargon: Boolean,
+        customMap: Map<String, String>
+    ): String {
+        // 1. Direct match in custom jargon
+        customMap[word]?.let { return it }
+
+        // 2. Direct match in tech jargon
+        if (enableTechJargon) {
+            defaultTechJargonMap[word]?.let { return it }
+        }
+
+        // 3. Direct match in smart loanwords
+        if (enableLoanwords) {
+            defaultSmartLoanwordsMap[word]?.let { return it }
+        }
+
+        // 4. Try stripping Bengali inflectional suffixes
+        // Handle words like মিটিং-এ, মিটিংয়ে, ল্যাপটপের, ফাইলটা, কুবারনেটিসে
+        val cleanWord = word.trim()
+        val hasHyphen = cleanWord.contains("-")
+
+        for (suffix in commonBanglaInflectionSuffixes) {
+            if (cleanWord.endsWith(suffix) && cleanWord.length > suffix.length) {
+                var stem = cleanWord.substring(0, cleanWord.length - suffix.length)
+                if (stem.endsWith("-")) {
+                    stem = stem.dropLast(1)
+                }
+
+                // Check custom
+                customMap[stem]?.let { target ->
+                    val normSuffix = normalizeSuffix(suffix)
+                    return "$target-$normSuffix"
+                }
+
+                // Check tech jargon
+                if (enableTechJargon) {
+                    defaultTechJargonMap[stem]?.let { target ->
+                        val normSuffix = normalizeSuffix(suffix)
+                        return "$target-$normSuffix"
+                    }
+                }
+
+                // Check smart loanwords
+                if (enableLoanwords) {
+                    defaultSmartLoanwordsMap[stem]?.let { target ->
+                        val normSuffix = normalizeSuffix(suffix)
+                        return "$target-$normSuffix"
+                    }
+                }
+            }
+        }
+
+        return word
+    }
+
+    private fun normalizeSuffix(suffix: String): String {
+        return when (suffix) {
+            "য়ে", "য়ে" -> "এ"
+            "য়ের", "য়ের" -> "এর"
+            else -> suffix
+        }
+    }
+
     fun formatFinalUtterance(
         rawText: String,
         languageCode: String,
         autoPunctuate: Boolean,
         digitMode: DigitConversionMode,
         autoCapLatin: Boolean,
-        replacements: List<ReplacementRule>
+        replacements: List<ReplacementRule>,
+        enableLoanwords: Boolean = false,
+        loanwordTargetScript: String = "ENGLISH",
+        enableTechJargon: Boolean = false,
+        customJargonJson: String = ""
     ): String {
         var processed = rawText
+        processed = applySmartLoanwordsAndJargon(
+            text = processed,
+            enableLoanwords = enableLoanwords,
+            loanwordTargetScript = loanwordTargetScript,
+            enableTechJargon = enableTechJargon,
+            customJargonJson = customJargonJson
+        )
         processed = applyReplacements(processed, rules = replacements)
         processed = convertDigits(processed, digitMode)
         if (autoCapLatin) {
