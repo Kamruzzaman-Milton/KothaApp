@@ -95,6 +95,20 @@ class SettingsRepository(context: Context) {
         } catch (e: Exception) { base.captionBubbleStyle }
         val captionLingerMs = try { prefs.getLong(KEY_CAPTION_LINGER_MS, base.captionLingerDurationMs) } catch (e: Exception) { base.captionLingerDurationMs }
         val tapCaptionToUndo = try { prefs.getBoolean(KEY_TAP_CAPTION_TO_UNDO, base.tapCaptionToUndo) } catch (e: Exception) { base.tapCaptionToUndo }
+        val undoBadgeStyle = try {
+            val name = prefs.getString(KEY_UNDO_BADGE_STYLE, base.undoBadgeStyle.name) ?: base.undoBadgeStyle.name
+            UndoBadgeStyle.valueOf(name)
+        } catch (e: Exception) { base.undoBadgeStyle }
+        val undoBadgeLabelMode = try {
+            val name = prefs.getString(KEY_UNDO_BADGE_LABEL_MODE, base.undoBadgeLabelMode.name) ?: base.undoBadgeLabelMode.name
+            UndoBadgeLabelMode.valueOf(name)
+        } catch (e: Exception) { base.undoBadgeLabelMode }
+        val undoBadgeSize = try {
+            val name = prefs.getString(KEY_UNDO_BADGE_SIZE, base.undoBadgeSize.name) ?: base.undoBadgeSize.name
+            UndoBadgeSize.valueOf(name)
+        } catch (e: Exception) { base.undoBadgeSize }
+        val undoBadgePulse = try { prefs.getBoolean(KEY_UNDO_BADGE_PULSE, base.undoBadgePulse) } catch (e: Exception) { base.undoBadgePulse }
+        val undoBadgeCustomColor = try { prefs.getLong(KEY_UNDO_BADGE_CUSTOM_COLOR, base.undoBadgeCustomColor) } catch (e: Exception) { base.undoBadgeCustomColor }
         val voiceBtnOffset = try { prefs.getInt(KEY_VOICE_BTN_OFFSET, base.voiceButtonVerticalOffsetDp) } catch (e: Exception) { base.voiceButtonVerticalOffsetDp }
         val transcriptionOffset = try { prefs.getInt(KEY_TRANSCRIPTION_OFFSET, base.transcriptionVerticalOffsetDp) } catch (e: Exception) { base.transcriptionVerticalOffsetDp }
 
@@ -274,6 +288,11 @@ class SettingsRepository(context: Context) {
             captionBubbleStyle = captionStyle,
             captionLingerDurationMs = captionLingerMs,
             tapCaptionToUndo = tapCaptionToUndo,
+            undoBadgeStyle = undoBadgeStyle,
+            undoBadgeLabelMode = undoBadgeLabelMode,
+            undoBadgeSize = undoBadgeSize,
+            undoBadgePulse = undoBadgePulse,
+            undoBadgeCustomColor = undoBadgeCustomColor,
             voiceButtonVerticalOffsetDp = voiceBtnOffset,
             transcriptionVerticalOffsetDp = transcriptionOffset,
             orbSizeDp = orbSize,
@@ -376,6 +395,11 @@ class SettingsRepository(context: Context) {
             editor.putString(KEY_CAPTION_STYLE, updated.captionBubbleStyle.name)
             editor.putLong(KEY_CAPTION_LINGER_MS, updated.captionLingerDurationMs)
             editor.putBoolean(KEY_TAP_CAPTION_TO_UNDO, updated.tapCaptionToUndo)
+            editor.putString(KEY_UNDO_BADGE_STYLE, updated.undoBadgeStyle.name)
+            editor.putString(KEY_UNDO_BADGE_LABEL_MODE, updated.undoBadgeLabelMode.name)
+            editor.putString(KEY_UNDO_BADGE_SIZE, updated.undoBadgeSize.name)
+            editor.putBoolean(KEY_UNDO_BADGE_PULSE, updated.undoBadgePulse)
+            editor.putLong(KEY_UNDO_BADGE_CUSTOM_COLOR, updated.undoBadgeCustomColor)
             editor.putInt(KEY_VOICE_BTN_OFFSET, updated.voiceButtonVerticalOffsetDp)
             editor.putInt(KEY_TRANSCRIPTION_OFFSET, updated.transcriptionVerticalOffsetDp)
 
@@ -529,6 +553,11 @@ class SettingsRepository(context: Context) {
         private const val KEY_CAPTION_STYLE = "caption_style"
         private const val KEY_CAPTION_LINGER_MS = "caption_linger_ms"
         private const val KEY_TAP_CAPTION_TO_UNDO = "tap_caption_to_undo"
+        private const val KEY_UNDO_BADGE_STYLE = "undo_badge_style"
+        private const val KEY_UNDO_BADGE_LABEL_MODE = "undo_badge_label_mode"
+        private const val KEY_UNDO_BADGE_SIZE = "undo_badge_size"
+        private const val KEY_UNDO_BADGE_PULSE = "undo_badge_pulse"
+        private const val KEY_UNDO_BADGE_CUSTOM_COLOR = "undo_badge_custom_color"
         private const val KEY_VOICE_BTN_OFFSET = "voice_btn_vertical_offset"
         private const val KEY_TRANSCRIPTION_OFFSET = "transcription_vertical_offset"
 

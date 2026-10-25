@@ -89,6 +89,9 @@ import com.example.settings.OrbShape
 import com.example.settings.RingStyle
 import com.example.settings.SettingsRepository
 import com.example.settings.StreamingStyle
+import com.example.settings.UndoBadgeLabelMode
+import com.example.settings.UndoBadgeSize
+import com.example.settings.UndoBadgeStyle
 import com.example.settings.VisibilityRule
 import com.example.ui.components.InkBracketToggle
 import com.example.ui.components.InkColorPicker
@@ -923,6 +926,7 @@ private fun Station03Insertion(settings: KothaSettings, repo: SettingsRepository
 @Composable
 private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
     val colors = LocalKothaColors.current
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Lock Position Toggle
         SettingToggleRow(
@@ -1135,6 +1139,283 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                 repo.updateSettings { s -> s.copy(tapCaptionToUndo = checked) }
             }
         )
+
+        // Undo Badge Button Customization
+        SettingCard(
+            title = "Undo Badge Appearance & Style • আনডু বাটন কাস্টমাইজেশন",
+            description = "কথা বলা শেষ হওয়ার পর বাবলে দৃশ্যমান 'আনডু' বাটনের রঙ, শৈলী, আকার ও লেবেল আপনার পছন্দমতো নির্ধারণ করুন যাতে এটি সহজে চোখে পড়ে।"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // 1. Live Interactive Preview of the Undo Badge
+                Text(
+                    text = "Live Preview (প্রিভিউ):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+
+                val previewCustomColor = settings.undoBadgeCustomColor.toInt()
+                val previewAccent = if (previewCustomColor != 0) Color(previewCustomColor) else colors.accent
+                val lum = (0.299f * previewAccent.red + 0.587f * previewAccent.green + 0.114f * previewAccent.blue)
+
+                val (previewBg, previewBorder, previewText) = when (settings.undoBadgeStyle) {
+                    UndoBadgeStyle.FILLED_ACCENT -> Triple(previewAccent, previewAccent.copy(alpha = 0.9f), if (lum > 0.45f) Color(0xFF121212) else Color.White)
+                    UndoBadgeStyle.CRIMSON_DANGER -> Triple(Color(0xFFD32F2F), Color(0xFFFF5252), Color.White)
+                    UndoBadgeStyle.AMBER_GLOW -> Triple(Color(0xFFFFB300), Color(0xFFFFD54F), Color(0xFF121212))
+                    UndoBadgeStyle.MONOCHROME_INVERSE -> Triple(Color.White, Color(0xFFE0E0E0), Color(0xFF121212))
+                    UndoBadgeStyle.OUTLINED_NEON -> Triple(previewAccent.copy(alpha = 0.22f), previewAccent, if (lum > 0.25f) previewAccent else Color.White)
+                }
+
+                val previewLabel = when (settings.undoBadgeLabelMode) {
+                    UndoBadgeLabelMode.ICON_AND_TEXT -> "↶ Undo"
+                    UndoBadgeLabelMode.ICON_ONLY -> "↶"
+                    UndoBadgeLabelMode.TEXT_ONLY -> "UNDO"
+                }
+
+                val (badgeHeightDp, badgePadHDp, badgeFontSp) = when (settings.undoBadgeSize) {
+                    UndoBadgeSize.COMPACT -> Triple(22.dp, 8.dp, 10.5.sp)
+                    UndoBadgeSize.STANDARD -> Triple(26.dp, 10.dp, 12.sp)
+                    UndoBadgeSize.PROMINENT -> Triple(30.dp, 14.dp, 13.5.sp)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xF21C1A18), RoundedCornerShape(18.dp))
+                        .border(1.5.dp, colors.accent.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(colors.accent, RoundedCornerShape(5.dp))
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "আমি কথা বলেছি...",
+                                fontFamily = DisplayFont,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                        }
+
+                        // The Undo Badge Button Preview
+                        Box(
+                            modifier = Modifier
+                                .height(badgeHeightDp)
+                                .background(previewBg, RoundedCornerShape(badgeHeightDp / 2))
+                                .border(1.5.dp, previewBorder, RoundedCornerShape(badgeHeightDp / 2))
+                                .clickable {
+                                    Toast.makeText(context, "Undo action preview tapped!", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = badgePadHDp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = previewLabel,
+                                fontFamily = MonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = badgeFontSp,
+                                color = previewText
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 2. Badge Style Selector
+                Text(
+                    text = "Badge Visual Style (বাটনের শৈলী):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                val styles = listOf(
+                    UndoBadgeStyle.FILLED_ACCENT to "Filled Accent • উজ্জ্বল অ্যাকসেন্ট",
+                    UndoBadgeStyle.CRIMSON_DANGER to "Crimson Alert • লাল সংকেত",
+                    UndoBadgeStyle.AMBER_GLOW to "Amber Glow • সোনালী সতর্কতা",
+                    UndoBadgeStyle.MONOCHROME_INVERSE to "Inverse White • সাদা বৈসাদৃশ্য",
+                    UndoBadgeStyle.OUTLINED_NEON to "Outlined Neon • বর্ডার নিয়ন"
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    styles.forEach { (style, label) ->
+                        val isSelected = settings.undoBadgeStyle == style
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, if (isSelected) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                                .background(if (isSelected) colors.accent.copy(alpha = 0.15f) else colors.surface)
+                                .clickable { repo.updateSettings { s -> s.copy(undoBadgeStyle = style) } }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = label,
+                                fontFamily = MonoFont,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) colors.accent else colors.textPrimary
+                            )
+                            if (isSelected) {
+                                Text(
+                                    text = "SELECTED",
+                                    fontFamily = MonoFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 3. Label Mode (Icon + Text, Icon Only, Text Only)
+                Text(
+                    text = "Badge Content (লেবেল ও আইকন):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkSegmentedControl(
+                    items = listOf(
+                        UndoBadgeLabelMode.ICON_AND_TEXT,
+                        UndoBadgeLabelMode.ICON_ONLY,
+                        UndoBadgeLabelMode.TEXT_ONLY
+                    ),
+                    selectedItem = settings.undoBadgeLabelMode,
+                    onItemSelected = { repo.updateSettings { s -> s.copy(undoBadgeLabelMode = it) } },
+                    labelProvider = {
+                        when (it) {
+                            UndoBadgeLabelMode.ICON_AND_TEXT -> "↶ Undo"
+                            UndoBadgeLabelMode.ICON_ONLY -> "↶ Only"
+                            UndoBadgeLabelMode.TEXT_ONLY -> "UNDO Text"
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 4. Badge Size (Compact, Standard, Prominent)
+                Text(
+                    text = "Badge Size (বাটনের আকার):",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkSegmentedControl(
+                    items = listOf(
+                        UndoBadgeSize.COMPACT,
+                        UndoBadgeSize.STANDARD,
+                        UndoBadgeSize.PROMINENT
+                    ),
+                    selectedItem = settings.undoBadgeSize,
+                    onItemSelected = { repo.updateSettings { s -> s.copy(undoBadgeSize = it) } },
+                    labelProvider = {
+                        when (it) {
+                            UndoBadgeSize.COMPACT -> "Compact (ছোট)"
+                            UndoBadgeSize.STANDARD -> "Standard (আদর্শ)"
+                            UndoBadgeSize.PROMINENT -> "Prominent (বড়)"
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 5. Pulse Animation Toggle
+                SettingToggleRow(
+                    title = "Breathing Glow Pulse • স্পন্দন অ্যানিমেশন",
+                    description = "কথা বলা সম্পন্ন হওয়ার পর আনডু বাটনটি মৃদু স্পন্দিত হয়ে দৃষ্টি আকর্ষণ করবে।",
+                    checked = settings.undoBadgePulse,
+                    onCheckedChange = { checked ->
+                        repo.updateSettings { s -> s.copy(undoBadgePulse = checked) }
+                    }
+                )
+
+                // 6. Custom Badge Tint Color Palette
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Custom Badge Color Tint • নির্দিষ্ট রঙ নির্বাচন:",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                val colorOptions = listOf(
+                    0L to "Theme Default (থিম)",
+                    0xFFE53935L to "Crimson Red (লাল)",
+                    0xFFF2542DL to "Vermilion (সিঁদুর)",
+                    0xFFFFB300L to "Amber Gold (সোনালী)",
+                    0xFF45A596L to "Verdigris (পান্না)",
+                    0xFF4D62CDL to "Indigo Blue (নীল)",
+                    0xFF9C27B0L to "Purple (বেগুনী)",
+                    0xFFFFFFFFL to "Pure White (সাদা)"
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    colorOptions.take(4).forEach { (colorVal, label) ->
+                        val isSelected = settings.undoBadgeCustomColor == colorVal
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.5.dp, if (isSelected) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                                .background(if (isSelected) colors.accent.copy(alpha = 0.2f) else colors.surface)
+                                .clickable { repo.updateSettings { s -> s.copy(undoBadgeCustomColor = colorVal) } }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label.split(" ").first(),
+                                fontFamily = MonoFont,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) colors.accent else colors.textPrimary
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    colorOptions.drop(4).forEach { (colorVal, label) ->
+                        val isSelected = settings.undoBadgeCustomColor == colorVal
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.5.dp, if (isSelected) colors.accent else colors.hairline, RoundedCornerShape(2.dp))
+                                .background(if (isSelected) colors.accent.copy(alpha = 0.2f) else colors.surface)
+                                .clickable { repo.updateSettings { s -> s.copy(undoBadgeCustomColor = colorVal) } }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label.split(" ").first(),
+                                fontFamily = MonoFont,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) colors.accent else colors.textPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Caption Bubble Position and Style Customization in Section 04
         SettingCard(

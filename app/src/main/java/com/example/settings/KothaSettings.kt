@@ -58,6 +58,26 @@ enum class VisibilityRule {
     KEYBOARD_VISIBLE
 }
 
+enum class UndoBadgeStyle {
+    FILLED_ACCENT,
+    CRIMSON_DANGER,
+    AMBER_GLOW,
+    MONOCHROME_INVERSE,
+    OUTLINED_NEON
+}
+
+enum class UndoBadgeLabelMode {
+    ICON_AND_TEXT,
+    ICON_ONLY,
+    TEXT_ONLY
+}
+
+enum class UndoBadgeSize {
+    COMPACT,
+    STANDARD,
+    PROMINENT
+}
+
 enum class GestureAction {
     SWITCH_MODE,
     SWITCH_LANGUAGE,
@@ -133,6 +153,11 @@ data class KothaSettings(
     val captionBubbleStyle: CaptionBubbleStyle = CaptionBubbleStyle.TRANSLUCENT_DARK,
     val captionLingerDurationMs: Long = 1000L,
     val tapCaptionToUndo: Boolean = true,
+    val undoBadgeStyle: UndoBadgeStyle = UndoBadgeStyle.FILLED_ACCENT,
+    val undoBadgeLabelMode: UndoBadgeLabelMode = UndoBadgeLabelMode.ICON_AND_TEXT,
+    val undoBadgeSize: UndoBadgeSize = UndoBadgeSize.STANDARD,
+    val undoBadgePulse: Boolean = true,
+    val undoBadgeCustomColor: Long = 0L,
 
     // 04 Orb
     val orbSizeDp: Int = 28,
@@ -244,6 +269,11 @@ data class KothaSettings(
         root.put("captionBubbleStyle", captionBubbleStyle.name)
         root.put("captionLingerDurationMs", captionLingerDurationMs)
         root.put("tapCaptionToUndo", tapCaptionToUndo)
+        root.put("undoBadgeStyle", undoBadgeStyle.name)
+        root.put("undoBadgeLabelMode", undoBadgeLabelMode.name)
+        root.put("undoBadgeSize", undoBadgeSize.name)
+        root.put("undoBadgePulse", undoBadgePulse)
+        root.put("undoBadgeCustomColor", undoBadgeCustomColor)
 
         root.put("orbSizeDp", orbSizeDp)
         root.put("orbShape", orbShape.name)
@@ -357,6 +387,17 @@ data class KothaSettings(
                 } catch (e: Exception) { base.captionBubbleStyle },
                 captionLingerDurationMs = root.optLong("captionLingerDurationMs", base.captionLingerDurationMs).coerceIn(500L, 5000L),
                 tapCaptionToUndo = root.optBoolean("tapCaptionToUndo", base.tapCaptionToUndo),
+                undoBadgeStyle = try {
+                    UndoBadgeStyle.valueOf(root.optString("undoBadgeStyle", base.undoBadgeStyle.name))
+                } catch (e: Exception) { base.undoBadgeStyle },
+                undoBadgeLabelMode = try {
+                    UndoBadgeLabelMode.valueOf(root.optString("undoBadgeLabelMode", base.undoBadgeLabelMode.name))
+                } catch (e: Exception) { base.undoBadgeLabelMode },
+                undoBadgeSize = try {
+                    UndoBadgeSize.valueOf(root.optString("undoBadgeSize", base.undoBadgeSize.name))
+                } catch (e: Exception) { base.undoBadgeSize },
+                undoBadgePulse = root.optBoolean("undoBadgePulse", base.undoBadgePulse),
+                undoBadgeCustomColor = root.optLong("undoBadgeCustomColor", base.undoBadgeCustomColor),
 
                 orbSizeDp = root.optInt("orbSizeDp", base.orbSizeDp),
                 orbShape = try {
