@@ -68,7 +68,8 @@ val stationIndexList = listOf(
     StationIndexItem("06", "Language Tools", "Auto-punctuation, Bangla danda '।', digit conversion, and voice commands", listOf("punctuation", "danda", "digits", "numbers", "replacement", "commands", "voice")),
     StationIndexItem("07", "System", "Permission ledger, Self-healing AccessibilityKeeper, ADB command, and MIUI guide", listOf("system", "permission", "accessibility", "adb", "keeper", "repair", "xiaomi", "miui", "hyperos")),
     StationIndexItem("08", "Data & Backup", "Export & import all settings to restore on a new phone, themes, event logs", listOf("data", "backup", "restore", "transfer", "phone", "settings", "theme", "json", "export", "import", "log", "diagnostics", "privacy", "about")),
-    StationIndexItem("09", "Voice Commands", "Customize trigger words for 15 voice editing & cursor commands", listOf("voice", "commands", "triggers", "editing", "cursor", "undo", "delete", "newline", "select", "send", "copy", "comma", "danda", "customize"))
+    StationIndexItem("09", "Voice Commands", "Customize trigger words for 15 voice editing & cursor commands", listOf("voice", "commands", "triggers", "editing", "cursor", "undo", "delete", "newline", "select", "send", "copy", "comma", "danda", "customize")),
+    StationIndexItem("10", "Shizoku Supported Features", "Privileged ADB/Shell powers: zero-click setup, self-healing, native send, cursor navigation, background clipboard, doze whitelist, and STT recovery", listOf("shizoku", "shizuku", "adb", "shell", "privileged", "zero-click", "self-healing", "send", "cursor", "clipboard", "doze", "whitelist", "recovery", "stt"))
 )
 
 @Composable

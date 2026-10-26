@@ -180,6 +180,7 @@ fun StationScreen(
                 "07" -> item { Station07System(settings, settingsRepo) }
                 "08" -> item { Station08Data(settings, settingsRepo) }
                 "09" -> item { Station09VoiceCommands(settings, settingsRepo) }
+                "10" -> item { Station10Shizoku(settings, settingsRepo) }
             }
             item { Spacer(modifier = Modifier.height(48.dp)) }
         }
@@ -2733,6 +2734,266 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) {
+    val colors = LocalKothaColors.current
+    val context = LocalContext.current
+    val pkg = context.packageName
+
+    fun copyToClipboard(label: String, text: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(label, text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "কমান্ড কপি করা হয়েছে / Command Copied!", Toast.LENGTH_SHORT).show()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Master Overview Card
+        SettingCard(
+            title = "⚡ Shizoku & ADB Privileged Control Hub",
+            description = "Shizuku ফ্রেমওয়ার্ক বা ওয়্যারলেস এডিবি (Wireless ADB / Root) ব্যবহার করে Kotha সিস্টেম-লেভেল বিশেষ সুবিধা (UID 2000 shell privileges) পায়। নিচে শীর্ষ ৭টি ব্যাকগ্রাউন্ড ও অটোমেশন ফিচার বিস্তারিত তুলে ধরা হলো।"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.accent.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .background(colors.accent.copy(alpha = 0.08f))
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = "💡 Shizoku কি এবং কেন কার্যকর?",
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = colors.accent
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "স্ট্যান্ডার্ড অ্যান্ড্রয়েড অ্যাক্সেসিবিলিটি সার্ভিস অনেক সময় টার্মিনাল, গেম বা হাইপারওএস/ওয়ানইউআই ব্যাটারি কিলারে বন্ধ হয়ে যায়। Shizoku যুক্ত থাকলে Kotha সরাসরি হিডেন সিস্টেম বাইন্ডার (IInputManager, IClipboard, IActivityManager) ব্যবহার করে শূন্য জটিলতায় কাজ করে।",
+                            fontFamily = MonoFont,
+                            fontSize = 11.sp,
+                            color = colors.textPrimary,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                val allInOneScript = """
+# 🚀 Kotha Master Shizuku / ADB Setup Script
+pm grant $pkg android.permission.RECORD_AUDIO
+appops set $pkg SYSTEM_ALERT_WINDOW allow
+settings put secure enabled_accessibility_services $pkg/com.example.bridge.TextBridgeService
+settings put secure accessibility_enabled 1
+dumpsys deviceidle whitelist +$pkg
+cmd appops set $pkg RUN_IN_BACKGROUND allow
+cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
+                """.trimIndent()
+
+                Button(
+                    onClick = { copyToClipboard("Kotha Master ADB Script", allInOneScript) },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
+                    shape = RoundedCornerShape(2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", tint = colors.accent, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Copy All-in-One Master Script (Shizuku / ADB)",
+                        fontFamily = MonoFont,
+                        fontSize = 11.sp,
+                        color = colors.textPrimary
+                    )
+                }
+            }
+        }
+
+        // 1. Zero-Click Setup
+        ShizokuFeatureCard(
+            featureNumber = "01",
+            titleEn = "Zero-Click Setup & Permission Grant",
+            titleBn = "এক ক্লিকে সকল পারমিশন ও অ্যাক্টিভেশন",
+            description = "ম্যানুয়ালি ৩-৪টি সেটিংস মেনু না খুঁজে Shizuku-এর মাধ্যমে মাইক্রোফোন, ফ্লোটিং উইন্ডো এবং অ্যাক্সেসিবিলিটি সার্ভিস এক সেকেন্ডে স্বয়ংক্রিয়ভাবে অন করা যায়।",
+            command = "pm grant $pkg android.permission.RECORD_AUDIO\nappops set $pkg SYSTEM_ALERT_WINDOW allow\nsettings put secure enabled_accessibility_services $pkg/com.example.bridge.TextBridgeService\nsettings put secure accessibility_enabled 1",
+            onCopy = { copyToClipboard("Feature 1 Zero-Click", it) }
+        )
+
+        // 2. Self-Healing Accessibility Service
+        ShizokuFeatureCard(
+            featureNumber = "02",
+            titleEn = "Self-Healing Accessibility Service",
+            titleBn = "স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর ও কিপার",
+            description = "শাওমি (HyperOS/MIUI), স্যামসাং (OneUI) বা ওপো (ColorOS) ব্যাকগ্রাউন্ডে অ্যাক্সেসিবিলিটি সার্ভিস বন্ধ করে দিলে Shizuku ব্যাকগ্রাউন্ড থেকে সার্ভিসটি রিস্টোর করে।",
+            command = "settings put secure enabled_accessibility_services $pkg/com.example.bridge.TextBridgeService\nsettings put secure accessibility_enabled 1",
+            onCopy = { copyToClipboard("Feature 2 Self-Healing", it) }
+        )
+
+        // 4. Hands-Free "Send" Voice Command
+        ShizokuFeatureCard(
+            featureNumber = "04",
+            titleEn = "Hands-Free \"Send\" Voice Command",
+            titleBn = "ভয়েস কমান্ডে সরাসরি মেসেজ পাঠানো",
+            description = "মুখে 'পাঠাও' বা 'Send' বললে সাধারণ অ্যাক্সেসিবিলিটি বাটন খুঁজতে গিয়ে ব্যর্থ হয়। Shizuku সরাসরি হার্ডওয়্যার KEYCODE_ENTER (৬৬) বা টাচ ইভেন্ট পাঠিয়ে যেকোনো মেসেজিং অ্যাপে মেসেজ সেন্ড করে।",
+            command = "input keyevent 66",
+            onCopy = { copyToClipboard("Feature 4 Hands-free Send", it) }
+        )
+
+        // 5. High-Precision Cursor Navigation & Editing Macros
+        ShizokuFeatureCard(
+            featureNumber = "05",
+            titleEn = "High-Precision Cursor Navigation & Macros",
+            titleBn = "হার্ডওয়্যার কিবোর্ড কার্সার ও এডিটিং ম্যাক্রো",
+            description = "টার্মিনাল (Termux), ওয়েবভিউ বা কোড এডিটরে সরাসরি হার্ডওয়্যার কী ইভেন্ট (Home, End, Ctrl+Del, Ctrl+A) পাঠিয়ে নির্ভুল গতিতে কার্সার মুভ এবং আগের শব্দ মুছে ফেলে।",
+            command = "# Delete previous word (Ctrl + Del)\ninput keyevent --longpress 113 67\n# Move to line beginning (Move Home)\ninput keyevent 122",
+            onCopy = { copyToClipboard("Feature 5 Cursor Navigation", it) }
+        )
+
+        // 7. Background Clipboard Bypass
+        ShizokuFeatureCard(
+            featureNumber = "07",
+            titleEn = "Background Clipboard Bypass",
+            titleBn = "ব্যাকগ্রাউন্ড ক্লিপবোর্ড সীমাবদ্ধতা বাইপাস",
+            description = "অ্যান্ড্রয়েড ১০+ ব্যাকগ্রাউন্ড অ্যাপের জন্য ক্লিপবোর্ড পড়া ও লেখা ব্লক করে। Shizuku হিডেন IClipboard বাইন্ডারের মাধ্যমে ব্যাকগ্রাউন্ডে টেক্সট পেস্ট করার পূর্ণ সুবিধা দেয়।",
+            command = "cmd clipboard get\n# Privileged clipboard injection via Shizuku IClipboard binder",
+            onCopy = { copyToClipboard("Feature 7 Clipboard Bypass", it) }
+        )
+
+        // 10. Battery Saver & Doze Whitelist
+        ShizokuFeatureCard(
+            featureNumber = "10",
+            titleEn = "Battery Saver & Doze Whitelist",
+            titleBn = "অ্যাক্টিভ ডোপ ও ব্যাটারি অপ্টিমাইজেশন ছাড়",
+            description = "স্ক্রিন অফ হলেও বা ফোন ডিপ স্লিপে গেলেও ডিক্টেশন সেশন যেন কোনোভাবেই ড্রপ না করে, সেজন্য Kotha-কে সরাসরি ডুয়াল ব্যাটারি হোয়াইটলিস্টে যুক্ত করে।",
+            command = "dumpsys deviceidle whitelist +$pkg\ncmd appops set $pkg RUN_IN_BACKGROUND allow\ncmd appops set $pkg RUN_ANY_IN_BACKGROUND allow",
+            onCopy = { copyToClipboard("Feature 10 Doze Whitelist", it) }
+        )
+
+        // 13. Speech Recognition Engine Diagnostic & Recovery
+        ShizokuFeatureCard(
+            featureNumber = "13",
+            titleEn = "Speech Recognition Engine Recovery",
+            titleBn = "স্পিচ ইঞ্জিন রিস্টার্ট ও ক্যাশ রিকভারি",
+            description = "গুগল স্পিচ সার্ভিস বা অ্যান্ড্রয়েড ভয়েস রিকগনাইজার হ্যাং বা 'ERROR_CLIENT' লুপে আটকে গেলে Shizuku সার্ভিসটি রিস্টার্ট করে ফ্রেশ সেশন চালু করে।",
+            command = "am force-stop com.google.android.googlequicksearchbox\nam force-stop com.google.android.tts",
+            onCopy = { copyToClipboard("Feature 13 STT Recovery", it) }
+        )
+    }
+}
+
+@Composable
+private fun ShizokuFeatureCard(
+    featureNumber: String,
+    titleEn: String,
+    titleBn: String,
+    description: String,
+    command: String,
+    onCopy: (String) -> Unit
+) {
+    val colors = LocalKothaColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
+            .background(colors.surface)
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .background(colors.accent.copy(alpha = 0.15f), RoundedCornerShape(2.dp))
+                            .border(1.dp, colors.accent, RoundedCornerShape(2.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "#$featureNumber",
+                            fontFamily = MonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = colors.accent
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = titleEn,
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = colors.textPrimary
+                    )
+                }
+            }
+
+            Text(
+                text = titleBn,
+                fontFamily = DisplayFont,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = colors.accent
+            )
+
+            Text(
+                text = description,
+                fontFamily = MonoFont,
+                fontSize = 11.sp,
+                color = colors.textMuted,
+                lineHeight = 16.sp
+            )
+
+            // Command Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
+                    .padding(8.dp)
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "COMMAND / BINDER CALL:",
+                            fontFamily = MonoFont,
+                            fontSize = 9.sp,
+                            color = colors.textMuted
+                        )
+                        IconButton(
+                            onClick = { onCopy(command) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Command",
+                                tint = colors.accent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = command,
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textPrimary
+                    )
                 }
             }
         }

@@ -132,9 +132,9 @@ Download the compiled APK package directly:
 
 ---
 
-## 🎛️ The 9 Stations of Kotha
+## 🎛️ The 10 Stations of Kotha
 
-Inside the Kotha app, configuration is organized into 9 modular control stations:
+Inside the Kotha app, configuration is organized into 10 modular control stations:
 
 | Station | Title | What You Can Configure |
 | :---: | :--- | :--- |
@@ -147,6 +147,21 @@ Inside the Kotha app, configuration is organized into 9 modular control stations
 | **07** | **System & Health** | Accessibility keeper watchdog, battery optimization bypass guide, MIUI/HyperOS permission ledger. |
 | **08** | **Data & Profiles** | Theme switching (Dark, Paper, AMOLED), JSON profile export/import (includes all custom triggers & settings), event logs. |
 | **09** | **Voice Commands** | Configure and manage 15 smart voice editing & cursor actions with unlimited custom trigger chips, per-command On/Off switches, and confirmation popups. |
+| **10** | **Shizoku Supported Features** | Privileged ADB/Shell powers (UID 2000): zero-click setup, self-healing accessibility, hands-free send, cursor macros, clipboard bypass, doze whitelist, and STT engine recovery. |
+
+---
+
+### 10. ⚡ Shizoku Supported Features
+
+When connected with [Shizuku](https://shizuku.rikka.app/) (or Wireless ADB / Root shell), Kotha unlocks privileged system-level automation (UID 2000 / Shell) bypassing Android's conventional background restrictions:
+
+1. **Zero-Click Setup**: Automatically grants `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `WRITE_SECURE_SETTINGS`, and turns on `TextBridgeService` in one tap without navigating confusing OEM settings.
+2. **Self-Healing Accessibility Service**: Automatically re-enables `TextBridgeService` in the background if killed by aggressive OEM task managers (HyperOS/MIUI, OneUI, ColorOS).
+4. **Hands-Free "Send" Voice Command**: Spoken command *"পাঠাও"* / *"Send"* dispatches native hardware `KEYCODE_ENTER` (keyevent 66) or precision tap, sending WhatsApp, Messenger, or Telegram messages without touching the screen.
+5. **High-Precision Cursor Navigation & Editing Macros**: Direct hardware key injection (`MOVE_HOME`, `CTRL + DEL`, `CTRL + A`) for instant cursor navigation and word deletion in Termux, code editors, and custom WebViews.
+7. **Background Clipboard Bypass**: Overcomes Android 10+ background clipboard restrictions via privileged `IClipboard` / `cmd clipboard` binder access for 100% reliable paste fallback.
+10. **Battery Saver & Doze Whitelist**: Direct execution of `dumpsys deviceidle whitelist` and `RUN_IN_BACKGROUND` appops to prevent voice dictation from freezing when the screen dims.
+13. **Speech Recognition Engine Diagnostic & Recovery**: Automatically detects and force-recovers frozen or zombie speech recognition engine sessions (`am force-stop`) when Google Speech encounters unrecoverable `ERROR_CLIENT` loops.
 
 ---
 
