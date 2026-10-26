@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.example.util.DiagnosticsLog
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 class TextBridgeService : AccessibilityService() {
@@ -540,6 +541,21 @@ class TextBridgeService : AccessibilityService() {
     }
 
     fun applySend(): Boolean {
+        // Priority 0: Shizuku privileged hardware Enter key injection
+        try {
+            val app = applicationContext as? com.example.KothaApplication
+            val settings = app?.settingsRepository?.cachedSettings
+            if (settings?.shizukuHandsFreeSendEnabled == true && com.example.util.ShizukuManager.hasPermission.value) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    com.example.util.ShizukuManager.sendEnterKey()
+                }
+                DiagnosticsLog.log(DiagnosticsLog.Category.INSERTION, "applySend: dispatched KEYCODE_ENTER via Shizuku")
+                return true
+            }
+        } catch (e: Exception) {
+            // Fallback to accessibility search
+        }
+
         val root = rootInActiveWindow ?: return false
         return try {
             // Priority 1: Search the window for a Send/Submit/Post button (Messaging & social apps)

@@ -151,9 +151,9 @@ Inside the Kotha app, configuration is organized into 10 modular control station
 
 ---
 
-### 10. ⚡ Shizoku Supported Features
+### 10. ⚡ Shizoku Supported Features (Zero-Command Automation)
 
-When connected with [Shizuku](https://shizuku.rikka.app/) (or Wireless ADB / Root shell), Kotha unlocks privileged system-level automation (UID 2000 / Shell) bypassing Android's conventional background restrictions:
+Kotha features native integration with [Shizuku](https://shizuku.rikka.app/). On first launch, Kotha automatically detects if Shizuku is running and prompts you for permission. Once granted, all privileged features are automatically activated and configured. You only need to visit **Station 10** in the settings to toggle specific functionalities on or off—no ADB commands, scripts, or manual terminal execution needed:
 
 1. **Zero-Click Setup**: Automatically grants `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `WRITE_SECURE_SETTINGS`, and turns on `TextBridgeService` in one tap without navigating confusing OEM settings.
 2. **Self-Healing Accessibility Service**: Automatically re-enables `TextBridgeService` in the background if killed by aggressive OEM task managers (HyperOS/MIUI, OneUI, ColorOS).

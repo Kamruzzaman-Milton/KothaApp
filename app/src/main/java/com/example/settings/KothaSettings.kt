@@ -216,7 +216,16 @@ data class KothaSettings(
     val historyEnabled: Boolean = false,
     val maxHistoryItems: Int = 50,
     val appTheme: AppTheme = AppTheme.DARK,
-    val accentInk: AccentInk = AccentInk.VERMILION
+    val accentInk: AccentInk = AccentInk.VERMILION,
+
+    // 10 Shizoku Privileged Features
+    val shizukuAutoSetupEnabled: Boolean = false,
+    val shizukuSelfHealingEnabled: Boolean = true,
+    val shizukuHandsFreeSendEnabled: Boolean = true,
+    val shizukuCursorNavEnabled: Boolean = true,
+    val shizukuClipboardBypassEnabled: Boolean = true,
+    val shizukuDozeWhitelistEnabled: Boolean = true,
+    val shizukuSttRecoveryEnabled: Boolean = true
 ) {
     fun getActiveDictationLanguage(): String {
         return if (isSecondaryLanguageActive) {
@@ -326,6 +335,14 @@ data class KothaSettings(
         root.put("maxHistoryItems", maxHistoryItems)
         root.put("appTheme", appTheme.name)
         root.put("accentInk", accentInk.name)
+
+        root.put("shizukuAutoSetupEnabled", shizukuAutoSetupEnabled)
+        root.put("shizukuSelfHealingEnabled", shizukuSelfHealingEnabled)
+        root.put("shizukuHandsFreeSendEnabled", shizukuHandsFreeSendEnabled)
+        root.put("shizukuCursorNavEnabled", shizukuCursorNavEnabled)
+        root.put("shizukuClipboardBypassEnabled", shizukuClipboardBypassEnabled)
+        root.put("shizukuDozeWhitelistEnabled", shizukuDozeWhitelistEnabled)
+        root.put("shizukuSttRecoveryEnabled", shizukuSttRecoveryEnabled)
         return root.toString(2)
     }
 
@@ -461,7 +478,15 @@ data class KothaSettings(
                 } catch (e: Exception) { base.appTheme },
                 accentInk = try {
                     AccentInk.valueOf(root.optString("accentInk", base.accentInk.name))
-                } catch (e: Exception) { base.accentInk }
+                } catch (e: Exception) { base.accentInk },
+
+                shizukuAutoSetupEnabled = root.optBoolean("shizukuAutoSetupEnabled", base.shizukuAutoSetupEnabled),
+                shizukuSelfHealingEnabled = root.optBoolean("shizukuSelfHealingEnabled", base.shizukuSelfHealingEnabled),
+                shizukuHandsFreeSendEnabled = root.optBoolean("shizukuHandsFreeSendEnabled", base.shizukuHandsFreeSendEnabled),
+                shizukuCursorNavEnabled = root.optBoolean("shizukuCursorNavEnabled", base.shizukuCursorNavEnabled),
+                shizukuClipboardBypassEnabled = root.optBoolean("shizukuClipboardBypassEnabled", base.shizukuClipboardBypassEnabled),
+                shizukuDozeWhitelistEnabled = root.optBoolean("shizukuDozeWhitelistEnabled", base.shizukuDozeWhitelistEnabled),
+                shizukuSttRecoveryEnabled = root.optBoolean("shizukuSttRecoveryEnabled", base.shizukuSttRecoveryEnabled)
             )
         }
     }
