@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -131,28 +130,15 @@ fun HomeScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { onNavigateStation("08") },
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
-                    ) {
-                        Icon(imageVector = Icons.Default.SettingsBackupRestore, contentDescription = "Backup and Restore Settings", tint = colors.accent)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "BACKUP", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
-                    }
-
-                    Button(
-                        onClick = onNavigateTestPad,
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
-                        shape = RoundedCornerShape(2.dp),
-                        modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
-                    ) {
-                        Icon(imageVector = Icons.Default.Build, contentDescription = "Test Pad", tint = colors.accent)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "TEST PAD", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
-                    }
+                Button(
+                    onClick = onNavigateTestPad,
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
+                    shape = RoundedCornerShape(2.dp),
+                    modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
+                ) {
+                    Icon(imageVector = Icons.Default.Build, contentDescription = "Test Pad", tint = colors.accent)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "TEST PAD", fontFamily = MonoFont, fontSize = 11.sp, color = colors.textPrimary)
                 }
             }
         }
