@@ -49,7 +49,37 @@ class MainActivity : ComponentActivity() {
         // Initial Shizuku status check
         ShizukuManager.checkStatus()
 
-        // Register Shizuku permission result listener
+        // Observe Shizuku permission state (triggers whether pre-granted in Shizuku app or newly granted)
+        lifecycleScope.launch {
+            ShizukuManager.hasPermission.collect { granted ->
+                if (granted) {
+                    val currentSettings = settingsRepo.cachedSettings
+                    if (!currentSettings.shizukuAutoSetupEnabled) {
+                        val result = ShizukuManager.applyZeroClickSetup(this@MainActivity)
+                        settingsRepo.updateSettings { s ->
+                            s.copy(
+                                shizukuAutoSetupEnabled = true,
+                                shizukuSelfHealingEnabled = true,
+                                shizukuHandsFreeSendEnabled = true,
+                                shizukuCursorNavEnabled = true,
+                                shizukuClipboardBypassEnabled = true,
+                                shizukuDozeWhitelistEnabled = true,
+                                shizukuSttRecoveryEnabled = true
+                            )
+                        }
+                        if (result.isSuccess) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "⚡ Shizuku Connected & Permitted! All background features auto-activated.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            }
+        }
+
+        // Register Shizuku permission request result listener
         ShizukuManager.registerPermissionListener { granted ->
             if (granted) {
                 lifecycleScope.launch {
@@ -70,12 +100,6 @@ class MainActivity : ComponentActivity() {
                             this@MainActivity,
                             "⚡ Shizuku Permission Granted! All background features auto-activated.",
                             Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "⚡ Shizuku connected! Background features ready.",
-                            Toast.LENGTH_SHORT
                         ).show()
                     }
                 }

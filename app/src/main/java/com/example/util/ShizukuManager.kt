@@ -19,6 +19,25 @@ object ShizukuManager {
 
     private var permissionListener: Shizuku.OnRequestPermissionResultListener? = null
 
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        checkStatus()
+    }
+
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        _isServiceRunning.value = false
+        _hasPermission.value = false
+    }
+
+    init {
+        try {
+            Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
+            Shizuku.addBinderDeadListener(binderDeadListener)
+        } catch (e: Throwable) {
+            // Shizuku not active
+        }
+        checkStatus()
+    }
+
     fun checkStatus() {
         val running = try {
             Shizuku.pingBinder()

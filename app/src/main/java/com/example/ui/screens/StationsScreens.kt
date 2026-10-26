@@ -2804,24 +2804,47 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
                             lineHeight = 16.sp
                         )
 
-                        if (isRunning && !hasPermission) {
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isRunning && !hasPermission) {
+                                Button(
+                                    onClick = {
+                                        val requested = com.example.util.ShizukuManager.requestPermission()
+                                        if (!requested) {
+                                            Toast.makeText(context, "Shizuku প্রম্পট চালু করা যায়নি", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                                    shape = RoundedCornerShape(2.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "Grant Shizuku Permission Now",
+                                        fontFamily = MonoFont,
+                                        fontSize = 11.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
                             Button(
                                 onClick = {
-                                    val requested = com.example.util.ShizukuManager.requestPermission()
-                                    if (!requested) {
-                                        Toast.makeText(context, "Shizuku প্রম্পট চালু করা যায়নি", Toast.LENGTH_SHORT).show()
-                                    }
+                                    com.example.util.ShizukuManager.checkStatus()
+                                    Toast.makeText(context, "Shizuku স্ট্যাটাস যাচাই করা হয়েছে", Toast.LENGTH_SHORT).show()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
                                 shape = RoundedCornerShape(2.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                modifier = Modifier.border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "Grant Shizuku Permission Now",
+                                    text = "🔄 Check / Refresh Status",
                                     fontFamily = MonoFont,
                                     fontSize = 11.sp,
-                                    color = Color.White
+                                    color = colors.textPrimary
                                 )
                             }
                         }
