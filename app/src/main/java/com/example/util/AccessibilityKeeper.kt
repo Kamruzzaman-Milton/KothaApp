@@ -143,7 +143,9 @@ class AccessibilityKeeper(
     @Synchronized
     fun attemptRepairIfNeeded(source: String): Boolean {
         if (_isAutoRepairStopped.value) return false
-        if (!checkPermission()) return false
+        val hasSecure = checkPermission()
+        val hasShizuku = ShizukuManager.hasPermission.value
+        if (!hasSecure && !hasShizuku) return false
 
         val settings = settingsRepository.cachedSettings
         if (!settings.keepAccessibilityAlive) return false
@@ -185,6 +187,18 @@ class AccessibilityKeeper(
         }
 
         repairTimestamps.add(now)
+
+        if (!hasSecure && hasShizuku) {
+            scope.launch {
+                ShizukuManager.healAccessibility(context)
+            }
+            _repairEventsCount.value++
+            DiagnosticsLog.log(
+                DiagnosticsLog.Category.REPAIR,
+                "Accessibility service auto-repaired via Shizuku from [$source]"
+            )
+            return true
+        }
 
         try {
             val newList = if (enabledServices.isBlank()) {

@@ -2,6 +2,7 @@ package com.example.util
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -142,35 +143,135 @@ object ShizukuManager {
         }
     }
 
-    // 1. Zero-Click Setup (Grants all permissions & activates accessibility)
-    suspend fun applyZeroClickSetup(context: Context): Result<String> {
-        val pkg = context.packageName
-        val script = """
-            pm grant $pkg android.permission.RECORD_AUDIO
-            appops set $pkg SYSTEM_ALERT_WINDOW allow
-            pm grant $pkg android.permission.WRITE_SECURE_SETTINGS
-            settings put secure enabled_accessibility_services $pkg/com.example.bridge.TextBridgeService
-            settings put secure accessibility_enabled 1
-            dumpsys deviceidle whitelist +$pkg
-            cmd appops set $pkg RUN_IN_BACKGROUND allow
-            cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
+    // =========================================================================
+    // Safe, Non-Destructive Command Builders
+    // =========================================================================
+
+    fun getTargetAccessibilityComponent(context: Context): String {
+        return "${context.packageName}/com.example.bridge.TextBridgeService"
+    }
+
+    /**
+     * Safely appends Kotha's Accessibility Service to the colon-separated list
+     * of enabled services without wiping out or disabling other apps' accessibility services.
+     */
+    fun getSafeAccessibilityEnableCommand(context: Context): String {
+        val target = getTargetAccessibilityComponent(context)
+        return """
+curr=${'$'}(settings get secure enabled_accessibility_services)
+case ":${'$'}curr:" in
+  *":$target:"*) ;;
+  *) if [ -z "${'$'}curr" ] || [ "${'$'}curr" = "null" ]; then
+       settings put secure enabled_accessibility_services "$target"
+     else
+       settings put secure enabled_accessibility_services "${'$'}curr:$target"
+     fi ;;
+esac
+settings put secure accessibility_enabled 1
         """.trimIndent()
-        return executeCommand(script)
     }
 
-    // 2. Self-Healing Accessibility Service
-    suspend fun healAccessibility(context: Context): Result<String> {
+    /**
+     * Safely removes only Kotha from the enabled accessibility services list,
+     * keeping all other apps' accessibility services intact.
+     */
+    fun getSafeAccessibilityDisableCommand(context: Context): String {
+        val target = getTargetAccessibilityComponent(context)
+        val existing = try {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
+        } catch (e: Exception) { "" }
+        val remaining = existing.split(":")
+            .filter { it.isNotBlank() && !it.equals(target, ignoreCase = true) }
+            .joinToString(":")
+        return if (remaining.isBlank()) {
+            "settings put secure enabled_accessibility_services \"\""
+        } else {
+            "settings put secure enabled_accessibility_services \"$remaining\""
+        }
+    }
+
+    // 01. Zero-Click Setup
+    fun getZeroClickSetupScript(context: Context): String {
         val pkg = context.packageName
-        val cmd = "settings put secure enabled_accessibility_services $pkg/com.example.bridge.TextBridgeService && settings put secure accessibility_enabled 1"
-        return executeCommand(cmd)
+        val enableAcc = getSafeAccessibilityEnableCommand(context)
+        return """
+pm grant $pkg android.permission.RECORD_AUDIO
+appops set $pkg SYSTEM_ALERT_WINDOW allow
+pm grant $pkg android.permission.WRITE_SECURE_SETTINGS
+$enableAcc
+dumpsys deviceidle whitelist +$pkg
+cmd appops set $pkg RUN_IN_BACKGROUND allow
+cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
+cmd appops set $pkg READ_CLIPBOARD allow
+        """.trimIndent()
     }
 
-    // 4. Hands-Free Send Command
+    // 02. Self-Healing Accessibility Service
+    fun getSelfHealingScript(context: Context): String {
+        return getSafeAccessibilityEnableCommand(context)
+    }
+
+    // 04. Hands-Free Send Command
+    fun getHandsFreeSendScript(): String {
+        return "input keyevent 66"
+    }
+
+    // 05. High-Precision Cursor Navigation & Editing Macros
+    fun getCursorMacroScript(): String {
+        return """
+# Delete previous character / word:
+input keyevent 67
+# Move cursor to start of line (Home):
+input keyevent 122
+# Move cursor to end of line (End):
+input keyevent 123
+        """.trimIndent()
+    }
+
+    // 07. Background Clipboard Bypass
+    fun getClipboardBypassScript(context: Context): String {
+        val pkg = context.packageName
+        return "cmd appops set $pkg READ_CLIPBOARD allow"
+    }
+
+    // 10. Battery Saver & Doze Whitelist
+    fun getDozeWhitelistScript(context: Context): String {
+        val pkg = context.packageName
+        return """
+dumpsys deviceidle whitelist +$pkg
+cmd appops set $pkg RUN_IN_BACKGROUND allow
+cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
+        """.trimIndent()
+    }
+
+    // 13. Speech Recognition Engine Diagnostic & Recovery
+    fun getSttRecoveryScript(): String {
+        return """
+am force-stop com.google.android.googlequicksearchbox
+am force-stop com.google.android.tts
+        """.trimIndent()
+    }
+
+    // =========================================================================
+    // Execution Handlers
+    // =========================================================================
+
+    suspend fun applyZeroClickSetup(context: Context): Result<String> {
+        return executeCommand(getZeroClickSetupScript(context))
+    }
+
+    suspend fun healAccessibility(context: Context): Result<String> {
+        return executeCommand(getSelfHealingScript(context))
+    }
+
+    suspend fun disableAccessibility(context: Context): Result<String> {
+        return executeCommand(getSafeAccessibilityDisableCommand(context))
+    }
+
     suspend fun sendEnterKey(): Result<String> {
-        return executeCommand("input keyevent 66")
+        return executeCommand(getHandsFreeSendScript())
     }
 
-    // 5. High-Precision Cursor Navigation & Editing
     suspend fun deletePreviousWord(): Result<String> {
         return executeCommand("input keyevent 67")
     }
@@ -183,29 +284,15 @@ object ShizukuManager {
         return executeCommand("input keyevent 123")
     }
 
-    // 7. Background Clipboard Bypass
-    suspend fun copyToClipboardPrivileged(text: String): Result<String> {
-        val escaped = text.replace("'", "'\\''")
-        return executeCommand("cmd clipboard set '$escaped' || echo '$escaped'")
+    suspend fun enableClipboardBypass(context: Context): Result<String> {
+        return executeCommand(getClipboardBypassScript(context))
     }
 
-    // 10. Battery Saver & Doze Whitelist
     suspend fun whitelistBattery(context: Context): Result<String> {
-        val pkg = context.packageName
-        val script = """
-            dumpsys deviceidle whitelist +$pkg
-            cmd appops set $pkg RUN_IN_BACKGROUND allow
-            cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
-        """.trimIndent()
-        return executeCommand(script)
+        return executeCommand(getDozeWhitelistScript(context))
     }
 
-    // 13. Speech Recognition Engine Diagnostic & Recovery
     suspend fun recoverSttEngine(): Result<String> {
-        val script = """
-            am force-stop com.google.android.googlequicksearchbox
-            am force-stop com.google.android.tts
-        """.trimIndent()
-        return executeCommand(script)
+        return executeCommand(getSttRecoveryScript())
     }
 }

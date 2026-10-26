@@ -2754,11 +2754,18 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         com.example.util.ShizukuManager.checkStatus()
     }
 
+    fun copyToClipboard(label: String, text: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(label, text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "কমান্ড কপি করা হয়েছে / Command Copied!", Toast.LENGTH_SHORT).show()
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Status Card
         SettingCard(
             title = "⚡ Shizoku & ADB Privileged Automation Hub",
-            description = "Shizuku ফ্রেমওয়ার্কের মাধ্যমে Kotha কোনো ম্যানুয়াল কমান্ড টাইপ ছাড়াই সিস্টেম-লেভেল সুবিধায় সরাসরি রান করে। নিচের টগলগুলো অন করলে অ্যাপ নিজেই ব্যাকগ্রাউন্ডে ফিচারগুলো সক্রিয় করে নেয়।"
+            description = "Shizuku ফ্রেমওয়ার্কের মাধ্যমে Kotha সিস্টেম-লেভেল সুবিধায় রান করে। প্রতিটি অপশনের নিচে ব্যাকগ্রাউন্ডে চলা প্রকৃত শেল কমান্ড ও সেফটি নোট প্রদর্শন করা হলো যাতে আপনি যেকোনো সমস্যা সহজে ট্র্যাক করতে পারেন।"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Live Shizuku Status Banner
@@ -2766,12 +2773,12 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
                     isRunning && hasPermission -> Triple(
                         colors.accent,
                         "🟢 Shizuku Status: Active & Connected (UID 2000)",
-                        "পারমিশন সক্রিয় রয়েছে। যেকোনো ফিচার টগল করলে সরাসরি ব্যাকগ্রাউন্ডে কাজ করবে।"
+                        "পারমিশন সক্রিয় রয়েছে। যেকোনো অপশন টগল করলে সরাসরি ব্যাকগ্রাউন্ডে কমান্ড এক্সিকিউট হবে।"
                     )
                     isRunning && !hasPermission -> Triple(
                         Color(0xFFE3A93B),
                         "🟡 Shizuku Status: Active (Permission Required)",
-                        "Shizuku সার্ভিস চলছে কিন্তু পারমিশন দেওয়া হয়নি। নিচে বাটন চেপে পারমিশন দিন।"
+                        "Shizuku সার্ভিস চালু আছে কিন্তু Kotha-কে পারমিশন দেওয়া হয়নি। নিচে বাটন চেপে পারমিশন দিন।"
                     )
                     else -> Triple(
                         colors.signalCrimson,
@@ -2853,113 +2860,185 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
             }
         }
 
+        // =====================================================================
         // Feature 1: Zero-Click Setup
-        SettingCard(
-            title = "#01 Zero-Click Setup • এক ক্লিকে সম্পূর্ণ সেটআপ",
-            description = "ম্যানুয়ালি কোনো সেটিংসে না গিয়ে Shizuku দিয়ে মাইক্রোফোন, ফ্লোটিং উইন্ডো এবং অ্যাক্সেসিবিলিটি সার্ভিস স্বয়ংক্রিয়ভাবে চালু করুন।"
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingToggleRow(
-                    title = "Auto-Grant All Permissions (স্বয়ংক্রিয় অ্যাক্টিভেশন)",
-                    description = "টগল অন করলে সঙ্গে সঙ্গে সবগুলো প্ল্যাটফর্ম পারমিশন প্রদান করে ব্রিজ সচল করবে।",
-                    checked = settings.shizukuAutoSetupEnabled,
-                    onCheckedChange = { isChecked ->
-                        repo.updateSettings { it.copy(shizukuAutoSetupEnabled = isChecked) }
-                        if (isChecked) {
-                            coroutineScope.launch {
-                                val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
-                                if (result.isSuccess) {
-                                    Toast.makeText(context, "সব পারমিশন ও অ্যাক্সেসিবিলিটি সার্ভিস স্বয়ংক্রিয়ভাবে অন হয়েছে!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Shizuku ত্রুটি: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
+        // =====================================================================
+        val zeroClickScript = com.example.util.ShizukuManager.getZeroClickSetupScript(context)
+        ShizokuCommandOptionCard(
+            number = "01",
+            titleEn = "Zero-Click Setup & Permission Grant",
+            titleBn = "এক ক্লিকে সম্পূর্ণ সেটআপ ও পারমিশন",
+            description = "ম্যানুয়ালি কোনো সেটিংসে না গিয়ে Shizuku দিয়ে মাইক্রোফোন, ফ্লোটিং উইন্ডো এবং অ্যাক্সেসিবিলিটি সার্ভিস এক সেকেন্ডে স্বয়ংক্রিয়ভাবে অন করে।",
+            command = zeroClickScript,
+            safetyNote = "নিরাপত্তা ফিক্স: আগের কোডে settings put ব্যবহারের কারণে ফোনের অন্যান্য অ্যাপের অ্যাক্সেসিবিলিটি মুছে যাচ্ছিল। এখন existing services যাচাই করে শুধুমাত্র Kotha-কে অ্যাপেন্ড করা হয়।",
+            checked = settings.shizukuAutoSetupEnabled,
+            onCheckedChange = { isChecked ->
+                repo.updateSettings { it.copy(shizukuAutoSetupEnabled = isChecked) }
+                if (isChecked) {
+                    coroutineScope.launch {
+                        val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "সব পারমিশন ও অ্যাক্সেসিবিলিটি সার্ভিস স্বয়ংক্রিয়ভাবে অন হয়েছে!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Shizuku ত্রুটি: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
-                )
-
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
-                            if (result.isSuccess) {
-                                repo.updateSettings { it.copy(shizukuAutoSetupEnabled = true) }
-                                Toast.makeText(context, "Zero-Click Setup সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Shizuku পারমিশন প্রয়োজন", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
-                    shape = RoundedCornerShape(2.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, colors.hairline, RoundedCornerShape(2.dp)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "⚡ Run Complete Zero-Click Setup Now",
-                        fontFamily = MonoFont,
-                        fontSize = 11.sp,
-                        color = colors.textPrimary
-                    )
                 }
-            }
-        }
+            },
+            actionButtonText = "⚡ Run Complete Zero-Click Setup Now",
+            onActionClick = {
+                coroutineScope.launch {
+                    val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
+                    if (result.isSuccess) {
+                        repo.updateSettings { it.copy(shizukuAutoSetupEnabled = true) }
+                        Toast.makeText(context, "Zero-Click Setup সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Shizuku পারমিশন প্রয়োজন", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 1 Zero-Click", it) }
+        )
 
+        // =====================================================================
         // Feature 2: Self-Healing Accessibility Service
-        SettingToggleRow(
-            title = "#02 Self-Healing Accessibility • স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর",
+        // =====================================================================
+        val selfHealingScript = com.example.util.ShizukuManager.getSelfHealingScript(context)
+        ShizokuCommandOptionCard(
+            number = "02",
+            titleEn = "Self-Healing Accessibility Service",
+            titleBn = "স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর ও কিপার",
             description = "MIUI, HyperOS বা OneUI ব্যাকগ্রাউন্ডে অ্যাক্সেসিবিলিটি সার্ভিস বন্ধ করে দিলে Shizuku কোনো ম্যানুয়াল ইন্টারভেনশন ছাড়াই নিঃশব্দে সার্ভিস পুনরায় চালু করবে।",
+            command = selfHealingScript,
+            safetyNote = "নিরাপত্তা ফিক্স: কেস-ম্যাচিং স্ক্রিপ্ট ফোনের বিদ্যমান অন্য কোনো অ্যাক্সেসিবিলিটি সার্ভিস বন্ধ বা ওভাররাইট করে না।",
             checked = settings.shizukuSelfHealingEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuSelfHealingEnabled = isChecked) }
                 if (isChecked) {
                     coroutineScope.launch {
-                        com.example.util.ShizukuManager.healAccessibility(context)
-                        Toast.makeText(context, "স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর সক্রিয়", Toast.LENGTH_SHORT).show()
+                        val result = com.example.util.ShizukuManager.healAccessibility(context)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর সক্রিয়", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
-            }
+            },
+            actionButtonText = "🛡️ Test Self-Healing Restore Now",
+            onActionClick = {
+                coroutineScope.launch {
+                    val result = com.example.util.ShizukuManager.healAccessibility(context)
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "অ্যাক্সেসিবিলিটি সার্ভিস সফলভাবে রিস্টোর হয়েছে!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "ব্যর্থ: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 2 Self-Healing", it) }
         )
 
+        // =====================================================================
         // Feature 4: Hands-Free Send Command
-        SettingToggleRow(
-            title = "#04 Hands-Free \"Send\" • ভয়েস কমান্ডে সরাসরি মেসেজ প্রেরণ",
+        // =====================================================================
+        val sendScript = com.example.util.ShizukuManager.getHandsFreeSendScript()
+        ShizokuCommandOptionCard(
+            number = "04",
+            titleEn = "Hands-Free \"Send\" Voice Command",
+            titleBn = "ভয়েস কমান্ডে সরাসরি মেসেজ প্রেরণ",
             description = "মুখে 'পাঠাও' বা 'Send' বললে সাধারণ অ্যাক্সেসিবিলিটি বাটন না পেলে Shizuku সরাসরি হার্ডওয়্যার KEYCODE_ENTER (৬৬) পাঠিয়ে যেকোনো চ্যাট ও মেসেজিং অ্যাপে মেসেজ সেন্ড করে।",
+            command = sendScript,
+            safetyNote = "নিরাপদ: শুধুমাত্র সক্রিয় ফোকাসড উইন্ডোতে একক এন্টার কী ইভেন্ট পাঠানো হয়। অন্য কোনো অ্যাপ বা ডেটায় প্রভাব ফেলে না।",
             checked = settings.shizukuHandsFreeSendEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuHandsFreeSendEnabled = isChecked) }
                 Toast.makeText(context, if (isChecked) "হ্যান্ডস-ফ্রি সেন্ড সক্রিয়" else "হ্যান্ডস-ফ্রি সেন্ড নিষ্ক্রিয়", Toast.LENGTH_SHORT).show()
-            }
+            },
+            actionButtonText = "🚀 Test Send Key (input keyevent 66)",
+            onActionClick = {
+                coroutineScope.launch {
+                    val result = com.example.util.ShizukuManager.sendEnterKey()
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Enter কী ইভেন্ট সফলভাবে পাঠানো হয়েছে!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 4 Send", it) }
         )
 
-        // Feature 5: High-Precision Cursor Navigation & Macros
-        SettingToggleRow(
-            title = "#05 Cursor Navigation & Macros • হার্ডওয়্যার কিবোর্ড ম্যাক্রো",
-            description = "টার্মিনাল (Termux), ওয়েবভিউ বা কোড এডিটরে সরাসরি হার্ডওয়্যার কী ইভেন্ট (Home, End, Ctrl+Del) পাঠিয়ে দ্রুতগতিতে কার্সার মুভ এবং আগের শব্দ মুছে ফেলে।",
+        // =====================================================================
+        // Feature 5: High-Precision Cursor Navigation & Editing Macros
+        // =====================================================================
+        val cursorScript = com.example.util.ShizukuManager.getCursorMacroScript()
+        ShizokuCommandOptionCard(
+            number = "05",
+            titleEn = "High-Precision Cursor Navigation & Macros",
+            titleBn = "হার্ডওয়্যার কিবোর্ড কার্সার ও ম্যাক্রো",
+            description = "টার্মিনাল (Termux), ওয়েবভিউ বা কোড এডিটরে সরাসরি হার্ডওয়্যার কী ইভেন্ট (Home, End, Del) পাঠিয়ে দ্রুতগতিতে কার্সার মুভ এবং আগের শব্দ মুছে ফেলে।",
+            command = cursorScript,
+            safetyNote = "নিরাপদ: স্ট্যান্ডার্ড অ্যান্ড্রয়েড কার্নেল কীকোড (67=Backspace, 122=Home, 123=End)। অবৈধ সিনট্যাক্স বা মাল্টি-আর্গুমেন্ট বাদ দেওয়া হয়েছে।",
             checked = settings.shizukuCursorNavEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuCursorNavEnabled = isChecked) }
                 Toast.makeText(context, if (isChecked) "কার্সার ম্যাক্রো সক্রিয়" else "কার্সার ম্যাক্রো নিষ্ক্রিয়", Toast.LENGTH_SHORT).show()
-            }
+            },
+            actionButtonText = "⌫ Test Delete Key (input keyevent 67)",
+            onActionClick = {
+                coroutineScope.launch {
+                    val result = com.example.util.ShizukuManager.deletePreviousWord()
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Backspace কী ইভেন্ট পাঠানো হয়েছে!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 5 Cursor", it) }
         )
 
+        // =====================================================================
         // Feature 7: Background Clipboard Bypass
-        SettingToggleRow(
-            title = "#07 Background Clipboard Bypass • ব্যাকগ্রাউন্ড ক্লিপবোর্ড বাইপাস",
+        // =====================================================================
+        val clipboardScript = com.example.util.ShizukuManager.getClipboardBypassScript(context)
+        ShizokuCommandOptionCard(
+            number = "07",
+            titleEn = "Background Clipboard Bypass",
+            titleBn = "ব্যাকগ্রাউন্ড ক্লিপবোর্ড সীমাবদ্ধতা বাইপাস",
             description = "অ্যান্ড্রয়েড ১০+ ব্যাকগ্রাউন্ড ক্লিপবোর্ড সীমাবদ্ধতা বাইপাস করে Shizuku-এর মাধ্যমে হার্ডেন্ড বা সুরক্ষিত ইনপুট ফিল্ডে সরাসরি পেস্ট সুবিধা নিশ্চিত করে।",
+            command = clipboardScript,
+            safetyNote = "নিরাপদ: অফিসিয়াল প্যাকেজ-লেভেল AppOp (READ_CLIPBOARD allow) যা শুধুমাত্র Kotha প্যাকেজের জন্য ব্যাকগ্রাউন্ড ক্লিপবোর্ড পড়ার অনুমতি দেয়। অন্য অ্যাপের কোনো ক্ষতি করে না।",
             checked = settings.shizukuClipboardBypassEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuClipboardBypassEnabled = isChecked) }
-                Toast.makeText(context, if (isChecked) "ক্লিপবোর্ড বাইপাস সক্রিয়" else "ক্লিপবোর্ড বাইপাস নিষ্ক্রিয়", Toast.LENGTH_SHORT).show()
-            }
+                if (isChecked) {
+                    coroutineScope.launch {
+                        val result = com.example.util.ShizukuManager.enableClipboardBypass(context)
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "ক্লিপবোর্ড বাইপাস পারমিশন সফলভাবে প্রয়োগ হয়েছে!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            },
+            actionButtonText = "📋 Apply Clipboard AppOp Grant",
+            onActionClick = {
+                coroutineScope.launch {
+                    val result = com.example.util.ShizukuManager.enableClipboardBypass(context)
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "READ_CLIPBOARD AppOp সফলভাবে প্রদান করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 7 Clipboard", it) }
         )
 
+        // =====================================================================
         // Feature 10: Battery Saver & Doze Whitelist
-        SettingToggleRow(
-            title = "#10 Battery Saver & Doze Whitelist • একটানা ব্যাকগ্রাউন্ড ডিক্টেশন",
+        // =====================================================================
+        val dozeScript = com.example.util.ShizukuManager.getDozeWhitelistScript(context)
+        ShizokuCommandOptionCard(
+            number = "10",
+            titleEn = "Battery Saver & Doze Whitelist",
+            titleBn = "একটানা ব্যাকগ্রাউন্ড ডিক্টেশন ও ডোপ ছাড়",
             description = "স্ক্রিন অফ হলেও বা ফোন ডিপ স্লিপে গেলেও ডিক্টেশন যাতে ড্রপ না করে, সেজন্য Kotha-কে সিস্টেমের ডুয়াল ব্যাটারি ও ব্যাকগ্রাউন্ড রান হোয়াইটলিস্টে যুক্ত করে।",
+            command = dozeScript,
+            safetyNote = "নিরাপদ: dumpsys deviceidle whitelist +package সিনট্যাক্স শুধুমাত্র Kotha-কে যুক্ত করে (বিদ্যমান কোনো অ্যাপ হোয়াইটলিস্ট থেকে বাদ পড়ে না)।",
             checked = settings.shizukuDozeWhitelistEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuDozeWhitelistEnabled = isChecked) }
@@ -2971,35 +3050,143 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
                         }
                     }
                 }
-            }
+            },
+            actionButtonText = "🔋 Apply Doze Whitelist Now",
+            onActionClick = {
+                coroutineScope.launch {
+                    val res = com.example.util.ShizukuManager.whitelistBattery(context)
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "ব্যাটারি অপ্টিমাইজেশন হোয়াইটলিস্ট সফলভাবে প্রয়োগ হয়েছে!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCopy = { copyToClipboard("Feature 10 Doze", it) }
         )
 
-        // Feature 13: Speech Recognition Engine Recovery
-        SettingCard(
-            title = "#13 Speech Engine Recovery • স্পিচ ইঞ্জিন রিস্টার্ট ও ক্যাশ রিকভারি",
-            description = "গুগল স্পিচ সার্ভিস বা অ্যান্ড্রয়েড ভয়েস রিকগনাইজার হ্যাং বা 'ERROR_CLIENT' লুপে আটকে গেলে Shizuku সার্ভিসটি রিস্টার্ট করে ফ্রেশ সেশন চালু করে।"
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingToggleRow(
-                    title = "Auto-Restart on Freeze (হ্যাং হলে অটো রিস্টার্ট)",
-                    description = "স্পিচ ইঞ্জিন বারবার ফেইল করলে অটোমেটিক ব্যাকগ্রাউন্ড কিল ও রিস্টার্ট চালাবে।",
-                    checked = settings.shizukuSttRecoveryEnabled,
-                    onCheckedChange = { isChecked ->
-                        repo.updateSettings { it.copy(shizukuSttRecoveryEnabled = isChecked) }
+        // =====================================================================
+        // Feature 13: Speech Recognition Engine Diagnostic & Recovery
+        // =====================================================================
+        val sttRecoveryScript = com.example.util.ShizukuManager.getSttRecoveryScript()
+        ShizokuCommandOptionCard(
+            number = "13",
+            titleEn = "Speech Recognition Engine Recovery",
+            titleBn = "স্পিচ ইঞ্জিন রিস্টার্ট ও ক্যাশ রিকভারি",
+            description = "গুগল স্পিচ সার্ভিস বা অ্যান্ড্রয়েড ভয়েস রিকগনাইজার হ্যাং বা 'ERROR_CLIENT' লুপে আটকে গেলে Shizuku সার্ভিসটি রিস্টার্ট করে ফ্রেশ সেশন চালু করে।",
+            command = sttRecoveryScript,
+            safetyNote = "বিচ্ছিন্ন প্রসেস: শুধুমাত্র গুগলের স্পিচ ব্যাকএন্ড (QuickSearchBox ও TTS) ফোর্স-স্টপ করে পুনরায় নতুন অডিও ব্রিজ তৈরি করা হয়। কোনো ব্যবহারকারী ডেটা ডিলিট হয় না।",
+            checked = settings.shizukuSttRecoveryEnabled,
+            onCheckedChange = { isChecked ->
+                repo.updateSettings { it.copy(shizukuSttRecoveryEnabled = isChecked) }
+            },
+            actionButtonText = "🔄 Force-Restart & Recover STT Engine Now",
+            onActionClick = {
+                coroutineScope.launch {
+                    val res = com.example.util.ShizukuManager.recoverSttEngine()
+                    if (res.isSuccess) {
+                        Toast.makeText(context, "গুগল স্পিচ ইঞ্জিন রিস্টার্ট সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "রিকভারি ব্যর্থ: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     }
-                )
+                }
+            },
+            onCopy = { copyToClipboard("Feature 13 STT Recovery", it) }
+        )
+    }
+}
 
+@Composable
+private fun ShizokuCommandOptionCard(
+    number: String,
+    titleEn: String,
+    titleBn: String,
+    description: String,
+    command: String,
+    safetyNote: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    actionButtonText: String? = null,
+    onActionClick: (() -> Unit)? = null,
+    onCopy: (String) -> Unit
+) {
+    val colors = LocalKothaColors.current
+    var isCommandExpanded by remember { mutableStateOf(true) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
+            .background(colors.surface)
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Header Row: Badge, Title, and Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(colors.accent.copy(alpha = 0.15f), RoundedCornerShape(2.dp))
+                            .border(1.dp, colors.accent, RoundedCornerShape(2.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "#$number",
+                            fontFamily = MonoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = colors.accent
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = titleEn,
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = titleBn,
+                            fontFamily = DisplayFont,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = colors.accent
+                        )
+                    }
+                }
+
+                androidx.compose.material3.Switch(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = colors.accent,
+                        checkedTrackColor = colors.accent.copy(alpha = 0.3f),
+                        uncheckedThumbColor = colors.textMuted,
+                        uncheckedTrackColor = colors.background
+                    )
+                )
+            }
+
+            // Description
+            Text(
+                text = description,
+                fontFamily = MonoFont,
+                fontSize = 11.sp,
+                color = colors.textMuted,
+                lineHeight = 16.sp
+            )
+
+            // Optional Quick Action Button
+            if (actionButtonText != null && onActionClick != null) {
                 Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            val res = com.example.util.ShizukuManager.recoverSttEngine()
-                            if (res.isSuccess) {
-                                Toast.makeText(context, "গুগল স্পিচ ইঞ্জিন রিস্টার্ট সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "রিকভারি ব্যর্থ: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
+                    onClick = onActionClick,
                     colors = ButtonDefaults.buttonColors(containerColor = colors.surface),
                     shape = RoundedCornerShape(2.dp),
                     modifier = Modifier
@@ -3008,13 +3195,73 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "🔄 Force-Restart & Recover STT Engine Now",
+                        text = actionButtonText,
                         fontFamily = MonoFont,
                         fontSize = 11.sp,
                         color = colors.textPrimary
                     )
                 }
             }
+
+            // Background Shell Command Inspector Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .border(1.dp, colors.hairline, RoundedCornerShape(2.dp))
+                    .padding(10.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "BACKGROUND SHELL COMMAND / ব্যাকগ্রাউন্ডে চলা কমান্ড:",
+                                fontFamily = MonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                color = colors.accent
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { onCopy(command) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy Command",
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Command Content
+                    Text(
+                        text = command,
+                        fontFamily = MonoFont,
+                        fontSize = 10.sp,
+                        color = colors.textPrimary,
+                        lineHeight = 15.sp
+                    )
+
+                    // Safety note
+                    Text(
+                        text = "ℹ️ $safetyNote",
+                        fontFamily = MonoFont,
+                        fontSize = 9.sp,
+                        color = colors.textMuted,
+                        lineHeight = 13.sp
+                    )
+                }
+            }
         }
     }
 }
+
