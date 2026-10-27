@@ -491,8 +491,9 @@ private fun Station02Mode(settings: KothaSettings, repo: SettingsRepository) {
             title = "3. Silence Complete Length • নীরবতা শনাক্তকরণ সময়কাল (অ্যাপ-নিয়ন্ত্রিত)",
             description = "কথা বলার মাঝে বিরতি নিলে অ্যাপ নিজে এই নির্ধারিত সময় পর্যন্ত অপেক্ষা করবে—ইঞ্জিনের অকাল বিরতি হলেও অ্যাপ তাৎক্ষণিকভাবে মাইক্রোফোন চালু রেখে আপনার চিন্তা করার পূর্ণ সময় নিশ্চিত করবে।\n\n" +
                     "This extends speech recognizer tolerances so thinking pauses are never prematurely cut short by Google Speech Services.\n\n" +
-                    "• ১০০০–১৮০০ ms (১–১.৮ সেকেন্ড): দ্রুত একটানা সাবলীল কথা বলার জন্য আদর্শ।\n" +
-                    "• ২০০০–৪০০০ ms (২–৪ সেকেন্ড): কথা বলার মাঝে চিন্তা করার দীর্ঘ বিরতি নেওয়ার জন্য উপযুক্ত।"
+                    "• ১২০০–২৫০০ ms (১.২–২.৫ সেকেন্ড): দ্রুত একটানা সাবলীল কথা বলার জন্য আদর্শ।\n" +
+                    "• ৩০০০–৮০০০ ms (৩–৮ সেকেন্ড): কথা বলার মাঝে চিন্তা করার মাঝারি বিরতি।\n" +
+                    "• ১০০০০–২০০০০ ms (১০–২০ সেকেন্ড): ধীরে ধীরে ভেবেচিন্তে দীর্ঘ বিরতি নিয়ে কথা বলার জন্য উপযুক্ত।"
         ) {
             InkRulerSlider(
                 value = settings.silenceCompleteMs.toFloat(),
@@ -500,7 +501,7 @@ private fun Station02Mode(settings: KothaSettings, repo: SettingsRepository) {
                     val newVal = it.toLong()
                     repo.updateSettings { s -> s.copy(silenceCompleteMs = newVal, silencePossiblyCompleteMs = newVal) }
                 },
-                valueRange = 800f..8000f,
+                valueRange = 1200f..20000f,
                 unitLabel = "ms"
             )
         }

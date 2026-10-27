@@ -34,11 +34,13 @@ class OrbWindowManager(
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var floatingView: OrbFloatingView? = null
     private var captionBubbleView: CaptionBubbleOverlay? = null
+    private var undoChipView: UndoChipOverlay? = null
     private var languageIndicatorView: LanguageIndicatorOverlay? = null
     private var quickPanelView: QuickPanelOverlay? = null
     private var confirmOverlayView: CommandConfirmOverlay? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var captionLayoutParams: WindowManager.LayoutParams? = null
+    private var undoChipLayoutParams: WindowManager.LayoutParams? = null
     private var languageIndicatorParams: WindowManager.LayoutParams? = null
 
     private var normalizedX = 0.85f
@@ -49,6 +51,7 @@ class OrbWindowManager(
 
     private var isViewAttached = false
     private var isCaptionAttached = false
+    private var isUndoChipAttached = false
     private var isLanguageIndicatorAttached = false
     private var isOrbVisuallyVisible = true
     private var isDictationRunning = false
@@ -126,6 +129,7 @@ class OrbWindowManager(
                 } catch (ignored: Exception) {}
                 updateLanguageIndicatorPosition()
                 updateCaptionPosition()
+                updateUndoChipPosition()
             },
             onDragFinished = { _, _ ->
                 snapToEdge(settingsRepository.cachedSettings)
@@ -142,6 +146,7 @@ class OrbWindowManager(
             isViewAttached = true
             setupLanguageIndicator(settings)
             setupCaptionBubble(settings)
+            setupUndoChip(settings)
             DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "Floating Orb added to WindowManager (size=${settings.orbSizeDp}dp)")
         } catch (e: Exception) {
             DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to add floating Orb: ${e.message}")
@@ -235,10 +240,6 @@ class OrbWindowManager(
         }
         captionBubbleView = capView
 
-        val initialFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                if (!settings.tapCaptionToUndo) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0
-
         val capParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -248,7 +249,9 @@ class OrbWindowManager(
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            initialFlags,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -264,6 +267,91 @@ class OrbWindowManager(
         } catch (e: Exception) {
             DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to add CaptionBubbleOverlay: ${e.message}")
         }
+    }
+
+    private fun setupUndoChip(settings: KothaSettings) {
+        if (undoChipView != null) return
+        val chip = UndoChipOverlay(
+            context = context,
+            onUndoClicked = { onUndo() }
+        ).apply {
+            this.settings = settings
+        }
+        undoChipView = chip
+
+        val chipParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+        }
+        undoChipLayoutParams = chipParams
+
+        try {
+            windowManager.addView(chip, chipParams)
+            isUndoChipAttached = true
+            DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "UndoChipOverlay added to WindowManager")
+        } catch (e: Exception) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Failed to add UndoChipOverlay: ${e.message}")
+        }
+    }
+
+    private fun updateUndoChipPosition() {
+        val undoView = undoChipView ?: return
+        val undoParams = undoChipLayoutParams ?: return
+        val orbParams = layoutParams ?: return
+        if (!isUndoChipAttached) return
+
+        val density = context.resources.displayMetrics.density
+        val margin = (8 * density).toInt()
+        val gap = (10 * density).toInt()
+
+        undoView.measure(
+            View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(screenHeight, View.MeasureSpec.AT_MOST)
+        )
+        val chipW = undoView.measuredWidth
+        val chipH = undoView.measuredHeight
+        val orbW = orbParams.width
+        val orbH = orbParams.height
+
+        val orbCenterX = orbParams.x + (orbW / 2)
+        if (orbCenterX >= screenWidth / 2) {
+            // Orb is on right side -> Undo button on left side of orb (and below strip)
+            val idealX = orbParams.x - chipW - gap
+            undoParams.x = idealX.coerceIn(margin, (screenWidth - chipW - margin).coerceAtLeast(margin))
+        } else {
+            // Orb is on left side -> Undo button on right side of orb (and below strip)
+            val idealX = orbParams.x + orbW + gap
+            undoParams.x = idealX.coerceIn(margin, (screenWidth - chipW - margin).coerceAtLeast(margin))
+        }
+
+        // On the same horizontal plane of the orb (centered vertically with the orb)
+        val idealY = orbParams.y + ((orbH - chipH) / 2)
+        undoParams.y = idealY.coerceIn(margin, (screenHeight - chipH - margin).coerceAtLeast(margin))
+
+        val isTouchable = undoView.visibility == View.VISIBLE && isOrbVisuallyVisible
+        if (isTouchable) {
+            undoParams.flags = undoParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            undoParams.flags = undoParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+
+        try {
+            windowManager.updateViewLayout(undoView, undoParams)
+        } catch (ignored: Exception) {}
     }
 
     private fun updateCaptionPosition() {
@@ -326,13 +414,7 @@ class OrbWindowManager(
             }
         }
 
-        // Toggle touchability: only capture touch when the applied undo button is active (finalUtterance is not blank)
-        val shouldBeTouchable = settings.tapCaptionToUndo && capView.visibility == View.VISIBLE && capView.finalUtterance.isNotBlank() && capW > 0
-        if (shouldBeTouchable) {
-            capParams.flags = capParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-        } else {
-            capParams.flags = capParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        }
+        capParams.flags = capParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 
         try {
             windowManager.updateViewLayout(capView, capParams)
@@ -364,11 +446,13 @@ class OrbWindowManager(
             }
 
             languageIndicatorView?.updateSettings(settings)
+            undoChipView?.settings = settings
             try {
                 windowManager.updateViewLayout(view, params)
             } catch (ignored: Exception) {}
             updateLanguageIndicatorPosition()
             updateCaptionPosition()
+            updateUndoChipPosition()
             syncLanguageIndicatorVisibility()
         }
     }
@@ -414,15 +498,24 @@ class OrbWindowManager(
 
         if (!settings.showLiveCaptionBubble) {
             captionBubbleView?.clearAll()
+            undoChipView?.hideUndo()
             return
         }
 
         if (isStreaming) {
             captionBubbleView?.setPartialText(caption)
+            undoChipView?.hideUndo()
         } else {
             captionBubbleView?.setFinalUtterance(caption)
+            if (caption.isNotBlank() && settings.tapCaptionToUndo) {
+                undoChipView?.showUndo(settings)
+                updateUndoChipPosition()
+            } else {
+                undoChipView?.hideUndo()
+            }
         }
         updateCaptionPosition()
+        updateUndoChipPosition()
     }
 
     fun updateVisibility(isKeyboardVisible: Boolean, isEditableFocused: Boolean, settings: KothaSettings) {
@@ -483,6 +576,7 @@ class OrbWindowManager(
                     } catch (ignored: Exception) {}
                     updateLanguageIndicatorPosition()
                     updateCaptionPosition()
+                    updateUndoChipPosition()
                 }
             }
             animator.start()
@@ -624,6 +718,13 @@ class OrbWindowManager(
             } catch (ignored: Exception) {}
             captionBubbleView = null
             isCaptionAttached = false
+        }
+        undoChipView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (ignored: Exception) {}
+            undoChipView = null
+            isUndoChipAttached = false
         }
         languageIndicatorView?.let {
             try {

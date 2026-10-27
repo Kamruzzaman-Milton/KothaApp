@@ -47,12 +47,6 @@ class CaptionBubbleOverlay(
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     }
 
-    private val undoTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-        textAlign = Paint.Align.CENTER
-    }
-
     private val cardRect = RectF()
     private val cornerRadiusDp = 18f
 
@@ -93,25 +87,10 @@ class CaptionBubbleOverlay(
     init {
         visibility = INVISIBLE
         alpha = 0f
-        isClickable = true
+        isClickable = false
         isFocusable = false
-        setOnClickListener {
-            handleTapToUndo()
-        }
         updateStyles()
         dotPulseAnimator.start()
-    }
-
-    private fun handleTapToUndo() {
-        if (!settings.tapCaptionToUndo) return
-        // Undo is strictly active only after dictation is applied (finalUtterance is non-blank)
-        if (finalUtterance.isNotBlank()) {
-            try {
-                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-            } catch (ignored: Exception) {}
-            onUndo()
-            clearAll()
-        }
     }
 
     override fun onDetachedFromWindow() {
@@ -131,7 +110,6 @@ class CaptionBubbleOverlay(
             CaptionBubbleSize.EXTRA_LARGE -> 20f
         }
         textPaint.textSize = spSize * density
-        undoTextPaint.textSize = (spSize + 1f) * density
         borderPaint.strokeWidth = 1.5f * density
 
         rebuildLayout()
@@ -290,36 +268,6 @@ class CaptionBubbleOverlay(
         }
     }
 
-    private fun getUndoBadgeLabel(): String {
-        return when (settings.undoBadgeLabelMode) {
-            com.example.settings.UndoBadgeLabelMode.ICON_AND_TEXT -> "↶ Undo"
-            com.example.settings.UndoBadgeLabelMode.ICON_ONLY -> "↶"
-            com.example.settings.UndoBadgeLabelMode.TEXT_ONLY -> "UNDO"
-        }
-    }
-
-    private fun getUndoBadgeMetrics(density: Float): Triple<Float, Float, Float> {
-        // Returns Triple(heightDp, horizPaddingDp, textSp)
-        return when (settings.undoBadgeSize) {
-            com.example.settings.UndoBadgeSize.COMPACT -> Triple(22f, 8f, 10.5f)
-            com.example.settings.UndoBadgeSize.STANDARD -> Triple(26f, 10f, 12f)
-            com.example.settings.UndoBadgeSize.PROMINENT -> Triple(30f, 13f, 13.5f)
-        }
-    }
-
-    private fun getUndoBadgeWidth(density: Float): Float {
-        val label = getUndoBadgeLabel()
-        val (_, horizPadDp, textSp) = getUndoBadgeMetrics(density)
-        undoTextPaint.textSize = textSp * density
-        val textW = undoTextPaint.measureText(label)
-        val minW = when (settings.undoBadgeSize) {
-            com.example.settings.UndoBadgeSize.COMPACT -> 28f * density
-            com.example.settings.UndoBadgeSize.STANDARD -> 34f * density
-            com.example.settings.UndoBadgeSize.PROMINENT -> 40f * density
-        }
-        return max(minW, textW + (horizPadDp * 2 * density))
-    }
-
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val density = resources.displayMetrics.density
         val layout = staticLayout
@@ -332,14 +280,10 @@ class CaptionBubbleOverlay(
         val padY = (10 * density)
         val dotRadius = (5 * density) // 10dp dot
         val dotGap = (10 * density)
-        val hasApplied = finalUtterance.isNotBlank()
-        val undoExtraWidth = if (settings.tapCaptionToUndo && hasApplied) {
-            getUndoBadgeWidth(density) + (10f * density)
-        } else 0f
 
         val maxAllowedW = min((resources.displayMetrics.widthPixels - (96 * density).toInt()).coerceAtLeast(160), (320 * density).toInt())
         val contentWidth = layout.width.toFloat().coerceAtMost(maxLineWidth(layout))
-        val totalWidth = (contentWidth + padX * 2 + dotRadius * 2 + dotGap + undoExtraWidth).toInt().coerceIn((100 * density).toInt(), maxAllowedW)
+        val totalWidth = (contentWidth + padX * 2 + dotRadius * 2 + dotGap).toInt().coerceIn((100 * density).toInt(), maxAllowedW)
         val totalHeight = (layout.height + padY * 2).toInt().coerceAtLeast((36 * density).toInt())
 
         setMeasuredDimension(totalWidth, totalHeight)
@@ -418,77 +362,5 @@ class CaptionBubbleOverlay(
         canvas.translate(textStartX, textStartY)
         layout.draw(canvas)
         canvas.restore()
-
-        // 5. Draw Undo Button ONLY when dictation has been applied (finalUtterance is not blank)
-        if (settings.tapCaptionToUndo && finalUtterance.isNotBlank()) {
-            val label = getUndoBadgeLabel()
-            val (badgeHDp, _, textSp) = getUndoBadgeMetrics(density)
-            val btnW = getUndoBadgeWidth(density)
-            val btnH = badgeHDp * density
-            val btnRight = width - (8f * density)
-            val btnLeft = btnRight - btnW
-            val btnTop = (height - btnH) / 2f
-            val btnBottom = btnTop + btnH
-            val btnRect = RectF(btnLeft, btnTop, btnRight, btnBottom)
-            val btnRadius = btnH / 2f // smooth pill
-
-            val customColor = settings.undoBadgeCustomColor.toInt()
-            val themeAccent = if (customColor != 0) customColor else settings.listeningColor.toInt()
-
-            val (bgColor, borderColor, labelColor) = when (settings.undoBadgeStyle) {
-                com.example.settings.UndoBadgeStyle.FILLED_ACCENT -> {
-                    val bg = themeAccent
-                    val border = ColorUtils.blendARGB(bg, Color.WHITE, 0.40f)
-                    val isLight = ColorUtils.calculateLuminance(bg) > 0.45
-                    val textCol = if (isLight) 0xFF121212.toInt() else 0xFFFFFFFF.toInt()
-                    Triple(bg, border, textCol)
-                }
-                com.example.settings.UndoBadgeStyle.CRIMSON_DANGER -> {
-                    val bg = 0xFFD32F2F.toInt()
-                    val border = 0xFFFF5252.toInt()
-                    Triple(bg, border, Color.WHITE)
-                }
-                com.example.settings.UndoBadgeStyle.AMBER_GLOW -> {
-                    val bg = 0xFFFFB300.toInt()
-                    val border = 0xFFFFD54F.toInt()
-                    Triple(bg, border, 0xFF121212.toInt())
-                }
-                com.example.settings.UndoBadgeStyle.MONOCHROME_INVERSE -> {
-                    val bg = 0xFFFFFFFF.toInt()
-                    val border = 0xFFE0E0E0.toInt()
-                    Triple(bg, border, 0xFF121212.toInt())
-                }
-                com.example.settings.UndoBadgeStyle.OUTLINED_NEON -> {
-                    val bg = ColorUtils.setAlphaComponent(themeAccent, 55)
-                    val border = themeAccent
-                    val textCol = if (ColorUtils.calculateLuminance(themeAccent) > 0.25) themeAccent else Color.WHITE
-                    Triple(bg, border, textCol)
-                }
-            }
-
-            // Pulse effect when enabled
-            val pulseFactor = if (settings.undoBadgePulse) (0.85f + 0.15f * dotPulseAlpha) else 1.0f
-            val finalBgColor = ColorUtils.setAlphaComponent(bgColor, (Color.alpha(bgColor) * pulseFactor).toInt().coerceIn(0, 255))
-
-            // Draw undo button pill background & border
-            val undoBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-                color = finalBgColor
-            }
-            val undoBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = (1.5f * density)
-                color = borderColor
-            }
-            canvas.drawRoundRect(btnRect, btnRadius, btnRadius, undoBgPaint)
-            canvas.drawRoundRect(btnRect, btnRadius, btnRadius, undoBorderPaint)
-
-            // Draw undo label & icon
-            undoTextPaint.color = labelColor
-            undoTextPaint.textSize = textSp * density
-            val undoX = btnRect.centerX()
-            val undoY = btnRect.centerY() - ((undoTextPaint.descent() + undoTextPaint.ascent()) / 2f)
-            canvas.drawText(label, undoX, undoY, undoTextPaint)
-        }
     }
 }

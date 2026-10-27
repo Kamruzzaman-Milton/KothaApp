@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlin.math.min
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,9 +90,22 @@ class SpeechEngineManager(
     private var lastCommittedText = ""
     private var startTimeoutRunnable: Runnable? = null
 
+    private val pendingSpeechBuffer = StringBuilder()
+    private var silenceCommitJob: Job? = null
+
     private fun cancelStartTimeout() {
         startTimeoutRunnable?.let { handler.removeCallbacks(it) }
         startTimeoutRunnable = null
+    }
+
+    private fun finalizeAndCommitBuffer() {
+        silenceCommitJob?.cancel()
+        val textToCommit = pendingSpeechBuffer.toString().trim()
+        pendingSpeechBuffer.clear()
+        currentPartialText = ""
+        if (textToCommit.isNotEmpty()) {
+            commitTextWithContinuationCheck(textToCommit)
+        }
     }
 
     private fun armStartTimeout(gen: Long) {
@@ -107,6 +121,10 @@ class SpeechEngineManager(
     }
 
     private fun commitPendingPartial() {
+        if (pendingSpeechBuffer.isNotEmpty()) {
+            finalizeAndCommitBuffer()
+            return
+        }
         val pending = currentPartialText.trim()
         if (pending.isNotEmpty()) {
             currentPartialText = ""
@@ -167,6 +185,7 @@ class SpeechEngineManager(
 
             override fun onBeginningOfSpeech() {
                 if (!isSessionActive || activeSlot != slot) return
+                silenceCommitJob?.cancel()
                 cancelStartTimeout()
                 markSpeech()
                 _dictationState.value = DictationState.Listening
@@ -178,6 +197,7 @@ class SpeechEngineManager(
                 if (!isSessionActive || activeSlot != slot) return
                 cancelStartTimeout()
                 if (rmsdB > RMS_SPEECH_THRESHOLD_DB) {
+                    silenceCommitJob?.cancel()
                     markSpeech()
                 }
                 val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
@@ -227,17 +247,50 @@ class SpeechEngineManager(
 
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val resultText = matches?.firstOrNull() ?: ""
+                val trimmed = resultText.trim()
+
+                if (trimmed.isNotEmpty()) {
+                    if (pendingSpeechBuffer.isEmpty()) {
+                        pendingSpeechBuffer.append(trimmed)
+                    } else if (!pendingSpeechBuffer.endsWith(trimmed)) {
+                        pendingSpeechBuffer.append(" ").append(trimmed)
+                    }
+                    val fullPending = pendingSpeechBuffer.toString().trim()
+                    currentPartialText = fullPending
+                    onPartialText(fullPending)
+                }
+
+                val s = settingsRepository.cachedSettings
+                val targetSilence = s.silenceCompleteMs
 
                 DiagnosticsLog.log(
                     DiagnosticsLog.Category.RECOGNIZER,
-                    "Final result ($slot): [${resultText.take(40)}...] (gen=$gen)"
+                    "Speech result on ($slot): [$trimmed], pending=[${pendingSpeechBuffer.take(40)}], targetSilence=${targetSilence}ms"
                 )
 
-                commitTextWithContinuationCheck(resultText)
+                // STRICT SILENCE COMPLETE TIMER:
+                // Only commit and enter text into the field when silence strictly equals or exceeds silenceCompleteMs
+                silenceCommitJob?.cancel()
+                val nextSlot = if (slot == RecognizerSlot.SLOT_A) RecognizerSlot.SLOT_B else RecognizerSlot.SLOT_A
 
-                if (isSessionActive && gen == sessionGeneration) {
+                silenceCommitJob = scope.launch {
+                    while (isSessionActive && gen == sessionGeneration) {
+                        val remaining = targetSilence - silenceElapsed()
+                        if (remaining <= 0) break
+                        delay(min(remaining, 50L))
+                    }
+                    if (isSessionActive && gen == sessionGeneration) {
+                        _dictationState.value = DictationState.Processing
+                        finalizeAndCommitBuffer()
+                        if (s.dictationMode == DictationMode.PAUSE_AND_RESTART) {
+                            scheduleRestart(delayMs = getRestartDelay(), generation = gen, targetSlot = nextSlot)
+                        }
+                    }
+                }
+
+                if (isSessionActive && gen == sessionGeneration && s.dictationMode == DictationMode.CONTINUOUS) {
                     triggerPingPongHandoff(fromSlot = slot, gen = gen)
-                } else {
+                } else if (!isSessionActive) {
                     _dictationState.value = DictationState.Idle
                 }
             }
@@ -246,13 +299,19 @@ class SpeechEngineManager(
                 if (!isSessionActive || activeSlot != slot) return
                 cancelStartTimeout()
                 resetIdleAutoStop()
+                silenceCommitJob?.cancel()
 
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val partial = matches?.firstOrNull() ?: ""
                 if (partial.isNotBlank()) {
                     markSpeech()
-                    currentPartialText = partial
-                    onPartialText(partial)
+                    val combined = if (pendingSpeechBuffer.isEmpty()) {
+                        partial
+                    } else {
+                        "${pendingSpeechBuffer.toString().trim()} $partial"
+                    }
+                    currentPartialText = combined
+                    onPartialText(combined)
                 }
             }
 
@@ -262,8 +321,29 @@ class SpeechEngineManager(
                 val segmentText = matches?.firstOrNull() ?: ""
                 if (segmentText.isNotBlank()) {
                     markSpeech()
-                    _utteranceCount.value++
-                    onFinalText(segmentText)
+                    if (pendingSpeechBuffer.isEmpty()) {
+                        pendingSpeechBuffer.append(segmentText.trim())
+                    } else if (!pendingSpeechBuffer.endsWith(segmentText.trim())) {
+                        pendingSpeechBuffer.append(" ").append(segmentText.trim())
+                    }
+                    val fullPending = pendingSpeechBuffer.toString().trim()
+                    currentPartialText = fullPending
+                    onPartialText(fullPending)
+
+                    val s = settingsRepository.cachedSettings
+                    val targetSilence = s.silenceCompleteMs
+                    val gen = sessionGeneration
+                    silenceCommitJob?.cancel()
+                    silenceCommitJob = scope.launch {
+                        while (isSessionActive && gen == sessionGeneration) {
+                            val remaining = targetSilence - silenceElapsed()
+                            if (remaining <= 0) break
+                            delay(min(remaining, 50L))
+                        }
+                        if (isSessionActive && gen == sessionGeneration) {
+                            finalizeAndCommitBuffer()
+                        }
+                    }
                 }
             }
 
@@ -302,6 +382,11 @@ class SpeechEngineManager(
     fun stopSession() {
         val stopGen = ++sessionGeneration
         isSessionActive = false
+        silenceCommitJob?.cancel()
+        if (pendingSpeechBuffer.isNotEmpty()) {
+            finalizeAndCommitBuffer()
+        }
+        pendingSpeechBuffer.clear()
         restartJob?.cancel()
         idleAutoStopJob?.cancel()
         sessionTimerJob?.cancel()
@@ -326,6 +411,11 @@ class SpeechEngineManager(
     fun pauseSession() {
         if (!isSessionActive) return
         isSessionActive = false
+        silenceCommitJob?.cancel()
+        if (pendingSpeechBuffer.isNotEmpty()) {
+            finalizeAndCommitBuffer()
+        }
+        pendingSpeechBuffer.clear()
         restartJob?.cancel()
         idleAutoStopJob?.cancel()
         sessionTimerJob?.cancel()
@@ -653,15 +743,15 @@ class SpeechEngineManager(
                 putExtra("android.speech.extra.ENABLE_FORMATTING", true)
             }
 
-            // Extended 30s continuous silence tolerances for uninterrupted dictation
-            val silenceMs = if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else settings.silenceCompleteMs.coerceIn(800L, 8000L)
+            // App-calibrated silence tolerance following settings.silenceCompleteMs strictly
+            val silenceMs = settings.silenceCompleteMs.coerceIn(1200L, 30000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silenceMs)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else silenceMs.coerceAtLeast(1500L))
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, silenceMs)
 
             putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", silenceMs)
             putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", silenceMs)
-            putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", if (settings.dictationMode == DictationMode.CONTINUOUS) 30000L else silenceMs.coerceAtLeast(1500L))
+            putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", silenceMs)
             putExtra("android.speech.extra.DICTATION_MODE", true)
         }
         return intent
