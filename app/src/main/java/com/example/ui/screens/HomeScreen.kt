@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.DictationService
 import com.example.settings.KothaSettings
 import com.example.settings.SettingsRepository
-import com.example.ui.components.OrbPreviewView
 import com.example.ui.theme.DisplayFont
 import com.example.ui.theme.LocalKothaColors
 import com.example.ui.theme.MonoFont
@@ -143,10 +142,6 @@ fun HomeScreen(
             }
         }
 
-        // Stage: Live interactive Orb Preview
-        item {
-            OrbPreviewView(settings = settings)
-        }
 
         // Full-Width Typographic Master Control to Float / Lower Orb
         item {

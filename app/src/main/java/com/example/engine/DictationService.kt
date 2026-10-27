@@ -57,6 +57,9 @@ class DictationService : Service() {
             context = this,
             settingsRepository = settingsRepository,
             onPartialText = { partial ->
+                if (partial.trim().isNotBlank()) {
+                    orbWindowManager.hideUndoButton()
+                }
                 textInsertionManager.handlePartialResult(partial, settingsRepository.cachedSettings)
             },
             onFinalText = { final ->
@@ -83,6 +86,9 @@ class DictationService : Service() {
                         )
                     }
                 )
+                if (final.trim().isNotBlank()) {
+                    orbWindowManager.showUndoButton()
+                }
             }
         )
 
@@ -97,6 +103,7 @@ class DictationService : Service() {
             },
             onUndo = {
                 textInsertionManager.performUndo()
+                orbWindowManager.hideUndoButton()
             },
             onTogglePause = {
                 speechEngineManager.togglePause()
@@ -124,6 +131,9 @@ class DictationService : Service() {
             speechEngineManager.dictationState.collectLatest { state ->
                 orbWindowManager.updateState(state)
                 updateNotification(state)
+                if (state !is DictationState.Listening && state !is DictationState.Starting && state !is DictationState.WaitingRestart && state !is DictationState.Restarting) {
+                    orbWindowManager.hideUndoButton()
+                }
             }
         }
 
@@ -146,6 +156,7 @@ class DictationService : Service() {
             textInsertionManager.lastInsertedUtterance.collectLatest { utterance ->
                 if (utterance.isNotBlank()) {
                     orbWindowManager.updateCaption(utterance, isStreaming = false)
+                    orbWindowManager.showUndoButton()
                 }
             }
         }
@@ -211,15 +222,18 @@ class DictationService : Service() {
             }
             ACTION_STOP -> {
                 speechEngineManager.stopSession()
+                orbWindowManager.hideUndoButton()
             }
             ACTION_PAUSE -> {
                 speechEngineManager.pauseSession()
+                orbWindowManager.hideUndoButton()
             }
             ACTION_RESUME -> {
                 speechEngineManager.resumeSession()
             }
             ACTION_UNDO -> {
                 textInsertionManager.performUndo()
+                orbWindowManager.hideUndoButton()
             }
             ACTION_HIDE_ORB -> {
                 stopSelf()
@@ -247,6 +261,7 @@ class DictationService : Service() {
         val currentState = speechEngineManager.dictationState.value
         if (currentState is DictationState.Listening || currentState is DictationState.Starting || currentState is DictationState.WaitingRestart || currentState is DictationState.Restarting) {
             speechEngineManager.stopSession()
+            orbWindowManager.hideUndoButton()
         } else if (currentState is DictationState.Paused) {
             speechEngineManager.resumeSession()
         } else {

@@ -272,16 +272,12 @@ fun OrbPreviewView(
                     previewState = previewState,
                     displayedText = displayedScriptText,
                     showCursor = showCursor,
-                    dotPulseAlpha = dotPulseAlpha,
-                    onUndoClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        undoTappedCount++
-                    }
+                    dotPulseAlpha = dotPulseAlpha
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 2. ORB + LANGUAGE SWITCHER OVERLAY CLUSTER
+                // 2. ORB + LANGUAGE SWITCHER + HORIZONTAL UNDO BUTTON OVERLAY CLUSTER
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -303,20 +299,45 @@ fun OrbPreviewView(
 
                         Spacer(modifier = Modifier.height((settings.voiceButtonVerticalOffsetDp.coerceIn(4, 16)).dp))
 
-                        // Live Interactive Floating Orb Button
-                        InteractiveOrbCanvas(
-                            settings = settings,
-                            previewState = previewState,
-                            pulse = pulse,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                previewState = if (previewState == PreviewOrbState.LISTENING) {
-                                    PreviewOrbState.IDLE
-                                } else {
-                                    PreviewOrbState.LISTENING
+                        // Orb and Undo Button placed on the exact same horizontal "X" axis (side by side)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Dedicated Floating Undo Button beside the Orb
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = settings.tapCaptionToUndo && (previewState == PreviewOrbState.LISTENING || previewState == PreviewOrbState.WAITING),
+                                enter = fadeIn(),
+                                exit = fadeOut()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    UndoBadgePreview(
+                                        settings = settings,
+                                        dotPulseAlpha = dotPulseAlpha,
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            undoTappedCount++
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(settings.undoButtonHorizontalGapDp.coerceIn(4, 32).dp))
                                 }
                             }
-                        )
+
+                            // Live Interactive Floating Orb Button
+                            InteractiveOrbCanvas(
+                                settings = settings,
+                                previewState = previewState,
+                                pulse = pulse,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    previewState = if (previewState == PreviewOrbState.LISTENING) {
+                                        PreviewOrbState.IDLE
+                                    } else {
+                                        PreviewOrbState.LISTENING
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -394,8 +415,7 @@ private fun ActiveCaptionBubblePreview(
     previewState: PreviewOrbState,
     displayedText: String,
     showCursor: Boolean,
-    dotPulseAlpha: Float,
-    onUndoClick: () -> Unit
+    dotPulseAlpha: Float
 ) {
     val primaryColor = Color(settings.listeningColor)
 
@@ -450,10 +470,10 @@ private fun ActiveCaptionBubblePreview(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
             Row(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -474,16 +494,6 @@ private fun ActiveCaptionBubblePreview(
                     color = if (isSpokenText) Color.White else Color(0xDDECE6DA),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // Undo Badge (rendered when speaking or tapping undo is enabled)
-            if (settings.tapCaptionToUndo && isSpokenText) {
-                Spacer(modifier = Modifier.width(8.dp))
-                UndoBadgePreview(
-                    settings = settings,
-                    dotPulseAlpha = dotPulseAlpha,
-                    onClick = onUndoClick
                 )
             }
         }
@@ -523,9 +533,12 @@ private fun UndoBadgePreview(
         UndoBadgeStyle.AMBER_GLOW -> Triple(Color(0xFFFFB300), Color(0xFFFFD54F), Color(0xFF121212))
         UndoBadgeStyle.MONOCHROME_INVERSE -> Triple(Color(0xFFFFFFFF), Color(0xFFE0E0E0), Color(0xFF121212))
         UndoBadgeStyle.OUTLINED_NEON -> Triple(themeAccent.copy(alpha = 0.22f), themeAccent, themeAccent)
+        UndoBadgeStyle.GLASSMORPHISM -> Triple(Color(0x38FFFFFF), Color(0x66FFFFFF), Color.White)
+        UndoBadgeStyle.SOLID_AMOLED_BLACK -> Triple(Color(0xFF000000), Color(0xFF2A2A2A), Color(0xFFE0E0E0))
+        UndoBadgeStyle.TRANSPARENT_BORDER -> Triple(Color.Transparent, themeAccent, themeAccent)
     }
 
-    val finalAlpha = if (settings.undoBadgePulse) (0.85f + 0.15f * dotPulseAlpha) else 1.0f
+    val finalAlpha = (if (settings.undoBadgePulse) (0.85f + 0.15f * dotPulseAlpha) else 1.0f) * settings.undoButtonOpacity
 
     Box(
         modifier = Modifier

@@ -109,6 +109,8 @@ class SettingsRepository(context: Context) {
         } catch (e: Exception) { base.undoBadgeSize }
         val undoBadgePulse = try { prefs.getBoolean(KEY_UNDO_BADGE_PULSE, base.undoBadgePulse) } catch (e: Exception) { base.undoBadgePulse }
         val undoBadgeCustomColor = try { prefs.getLong(KEY_UNDO_BADGE_CUSTOM_COLOR, base.undoBadgeCustomColor) } catch (e: Exception) { base.undoBadgeCustomColor }
+        val undoButtonOpacity = try { prefs.getFloat(KEY_UNDO_BUTTON_OPACITY, base.undoButtonOpacity) } catch (e: Exception) { base.undoButtonOpacity }
+        val undoButtonHorizontalGapDp = try { prefs.getInt(KEY_UNDO_BUTTON_HORIZONTAL_GAP_DP, base.undoButtonHorizontalGapDp) } catch (e: Exception) { base.undoButtonHorizontalGapDp }
         val voiceBtnOffset = try { prefs.getInt(KEY_VOICE_BTN_OFFSET, base.voiceButtonVerticalOffsetDp) } catch (e: Exception) { base.voiceButtonVerticalOffsetDp }
         val transcriptionOffset = try { prefs.getInt(KEY_TRANSCRIPTION_OFFSET, base.transcriptionVerticalOffsetDp) } catch (e: Exception) { base.transcriptionVerticalOffsetDp }
 
@@ -293,6 +295,8 @@ class SettingsRepository(context: Context) {
             undoBadgeSize = undoBadgeSize,
             undoBadgePulse = undoBadgePulse,
             undoBadgeCustomColor = undoBadgeCustomColor,
+            undoButtonOpacity = undoButtonOpacity,
+            undoButtonHorizontalGapDp = undoButtonHorizontalGapDp,
             voiceButtonVerticalOffsetDp = voiceBtnOffset,
             transcriptionVerticalOffsetDp = transcriptionOffset,
             orbSizeDp = orbSize,
@@ -400,6 +404,8 @@ class SettingsRepository(context: Context) {
             editor.putString(KEY_UNDO_BADGE_SIZE, updated.undoBadgeSize.name)
             editor.putBoolean(KEY_UNDO_BADGE_PULSE, updated.undoBadgePulse)
             editor.putLong(KEY_UNDO_BADGE_CUSTOM_COLOR, updated.undoBadgeCustomColor)
+            editor.putFloat(KEY_UNDO_BUTTON_OPACITY, updated.undoButtonOpacity)
+            editor.putInt(KEY_UNDO_BUTTON_HORIZONTAL_GAP_DP, updated.undoButtonHorizontalGapDp)
             editor.putInt(KEY_VOICE_BTN_OFFSET, updated.voiceButtonVerticalOffsetDp)
             editor.putInt(KEY_TRANSCRIPTION_OFFSET, updated.transcriptionVerticalOffsetDp)
 
@@ -558,6 +564,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_UNDO_BADGE_SIZE = "undo_badge_size"
         private const val KEY_UNDO_BADGE_PULSE = "undo_badge_pulse"
         private const val KEY_UNDO_BADGE_CUSTOM_COLOR = "undo_badge_custom_color"
+        private const val KEY_UNDO_BUTTON_OPACITY = "undo_button_opacity"
+        private const val KEY_UNDO_BUTTON_HORIZONTAL_GAP_DP = "undo_button_horizontal_gap_dp"
         private const val KEY_VOICE_BTN_OFFSET = "voice_btn_vertical_offset"
         private const val KEY_TRANSCRIPTION_OFFSET = "transcription_vertical_offset"
 

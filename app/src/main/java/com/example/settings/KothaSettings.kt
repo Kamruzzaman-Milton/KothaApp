@@ -60,6 +60,9 @@ enum class VisibilityRule {
 
 enum class UndoBadgeStyle {
     FILLED_ACCENT,
+    GLASSMORPHISM,
+    SOLID_AMOLED_BLACK,
+    TRANSPARENT_BORDER,
     CRIMSON_DANGER,
     AMBER_GLOW,
     MONOCHROME_INVERSE,
@@ -158,6 +161,8 @@ data class KothaSettings(
     val undoBadgeSize: UndoBadgeSize = UndoBadgeSize.STANDARD,
     val undoBadgePulse: Boolean = true,
     val undoBadgeCustomColor: Long = 0L,
+    val undoButtonOpacity: Float = 0.95f,
+    val undoButtonHorizontalGapDp: Int = 10,
 
     // 04 Orb
     val orbSizeDp: Int = 28,
@@ -283,6 +288,8 @@ data class KothaSettings(
         root.put("undoBadgeSize", undoBadgeSize.name)
         root.put("undoBadgePulse", undoBadgePulse)
         root.put("undoBadgeCustomColor", undoBadgeCustomColor)
+        root.put("undoButtonOpacity", undoButtonOpacity.toDouble())
+        root.put("undoButtonHorizontalGapDp", undoButtonHorizontalGapDp)
 
         root.put("orbSizeDp", orbSizeDp)
         root.put("orbShape", orbShape.name)
@@ -415,6 +422,8 @@ data class KothaSettings(
                 } catch (e: Exception) { base.undoBadgeSize },
                 undoBadgePulse = root.optBoolean("undoBadgePulse", base.undoBadgePulse),
                 undoBadgeCustomColor = root.optLong("undoBadgeCustomColor", base.undoBadgeCustomColor),
+                undoButtonOpacity = root.optDouble("undoButtonOpacity", base.undoButtonOpacity.toDouble()).toFloat(),
+                undoButtonHorizontalGapDp = root.optInt("undoButtonHorizontalGapDp", base.undoButtonHorizontalGapDp),
 
                 orbSizeDp = root.optInt("orbSizeDp", base.orbSizeDp),
                 orbShape = try {

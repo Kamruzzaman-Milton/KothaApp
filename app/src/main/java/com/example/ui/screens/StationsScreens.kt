@@ -98,6 +98,7 @@ import com.example.ui.components.InkBracketToggle
 import com.example.ui.components.InkColorPicker
 import com.example.ui.components.InkRulerSlider
 import com.example.ui.components.InkSegmentedControl
+import com.example.ui.components.OrbPreviewView
 import com.example.ui.components.InkStepper
 import com.example.ui.theme.DisplayFont
 import com.example.ui.theme.LocalKothaColors
@@ -931,6 +932,9 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
     val colors = LocalKothaColors.current
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Stage: Live interactive Orb Preview
+        OrbPreviewView(settings = settings)
+
         // Lock Position Toggle
         SettingToggleRow(
             title = "Lock Position • নির্দিষ্ট স্থানে বাটন লক রাখুন",
@@ -1079,64 +1083,39 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
             }
         }
 
-        // Voice Button & Transcription Vertical Spacing / Offset Card
+        // Voice Button Vertical Spacing / Offset Card
         SettingCard(
-            title = "Voice Button & Transcription Position • অবস্থান সমন্বয়",
-            description = "মূল ফ্লোটিং বাটন (Orb) থেকে ভাষা পরিবর্তন বাটন এবং লাইভ টেক্সট ট্রানস্ক্রিপশন স্ট্রিপের উল্লম্ব অবস্থান (কতটুকু উপরে বা নিচে থাকবে) নিয়ন্ত্রণ করুন।"
+            title = "Voice Button Position • ভাষা পরিবর্তন বাটনের অবস্থান",
+            description = "মূল ফ্লোটিং বাটন (Orb) থেকে ভাষা পরিবর্তন বাটনের উল্লম্ব অবস্থান (কতটুকু উপরে থাকবে) নিয়ন্ত্রণ করুন।"
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Column {
-                    Text(
-                        text = "Voice Change Button Distance (ভাষা বাটনের দূরত্ব): ${settings.voiceButtonVerticalOffsetDp} dp",
-                        fontFamily = MonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "মূল বাটন থেকে ভাষা পরিবর্তন বাটনের উল্লম্ব ব্যবধান (DP)। মান বৃদ্ধি করলে আরও উপরে উঠবে।",
-                        fontFamily = MonoFont,
-                        fontSize = 10.sp,
-                        color = colors.textMuted
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    InkRulerSlider(
-                        value = settings.voiceButtonVerticalOffsetDp.toFloat(),
-                        onValueChange = { repo.updateSettings { s -> s.copy(voiceButtonVerticalOffsetDp = it.toInt()) } },
-                        valueRange = -20f..80f,
-                        unitLabel = "dp"
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = "Transcription Strip Distance (ট্রানস্ক্রিপশন স্ট্রিপের দূরত্ব): ${settings.transcriptionVerticalOffsetDp} dp",
-                        fontFamily = MonoFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "মূল বাটন থেকে লাইভ টেক্সট ট্রানস্ক্রিপশন স্ট্রিপের উল্লম্ব ব্যবধান (DP)। মান বৃদ্ধি করলে আরও উপরে উঠবে।",
-                        fontFamily = MonoFont,
-                        fontSize = 10.sp,
-                        color = colors.textMuted
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    InkRulerSlider(
-                        value = settings.transcriptionVerticalOffsetDp.toFloat(),
-                        onValueChange = { repo.updateSettings { s -> s.copy(transcriptionVerticalOffsetDp = it.toInt()) } },
-                        valueRange = -20f..80f,
-                        unitLabel = "dp"
-                    )
-                }
+            Column {
+                Text(
+                    text = "Voice Change Button Distance (ভাষা বাটনের দূরত্ব): ${settings.voiceButtonVerticalOffsetDp} dp",
+                    fontFamily = MonoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    color = colors.textPrimary
+                )
+                Text(
+                    text = "মূল বাটন থেকে ভাষা পরিবর্তন বাটনের উল্লম্ব ব্যবধান (DP)। মান বৃদ্ধি করলে আরও উপরে উঠবে।",
+                    fontFamily = MonoFont,
+                    fontSize = 10.sp,
+                    color = colors.textMuted
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                InkRulerSlider(
+                    value = settings.voiceButtonVerticalOffsetDp.toFloat(),
+                    onValueChange = { repo.updateSettings { s -> s.copy(voiceButtonVerticalOffsetDp = it.toInt()) } },
+                    valueRange = -20f..80f,
+                    unitLabel = "dp"
+                )
             }
         }
 
-        // Tap-to-Dismiss Caption to Undo
+        // Floating Undo Button Toggle
         SettingToggleRow(
-            title = "Tap Bubble to Dismiss & Undo • বাবলে ট্যাপ করে মুছে ফেলা (Undo)",
-            description = "ভাসমান প্রিভিউ বাবলে ট্যাপ করলেই শেষ বলা কথা সাথে সাথে মুছে যাবে (Undo) এবং বাবলটি মিলিয়ে যাবে। Tap the live caption bubble anytime to immediately revert the last dictated phrase and dismiss the bubble.",
+            title = "Show Floating Undo Button • ভাসমান আনডু বাটন সক্ষম করুন",
+            description = "কথা বলা শেষ হলে মূল বাটনের পাশে একই আনুভূমিক অক্ষে (X-axis) তাৎক্ষণিক আনডু বাটন ভেসে উঠবে। Shows a dedicated floating Undo button on the same horizontal line beside the Orb to instantly revert the last dictated phrase.",
             checked = settings.tapCaptionToUndo,
             onCheckedChange = { checked ->
                 repo.updateSettings { s -> s.copy(tapCaptionToUndo = checked) }
@@ -1146,12 +1125,12 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
         // Undo Badge Button Customization
         SettingCard(
             title = "Undo Badge Appearance & Style • আনডু বাটন কাস্টমাইজেশন",
-            description = "কথা বলা শেষ হওয়ার পর বাবলে দৃশ্যমান 'আনডু' বাটনের রঙ, শৈলী, আকার ও লেবেল আপনার পছন্দমতো নির্ধারণ করুন যাতে এটি সহজে চোখে পড়ে।"
+            description = "কথা বলা শেষ হওয়ার পর মূল বাটনের পাশে ভেসে ওঠা 'আনডু' বাটনের রঙ, শৈলী, আকার ও লেবেল আপনার পছন্দমতো নির্ধারণ করুন।"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // 1. Live Interactive Preview of the Undo Badge
+                // 1. Live Standalone Preview of the Undo Badge (on the same horizontal axis alongside Orb)
                 Text(
-                    text = "Live Preview (প্রিভিউ):",
+                    text = "Live Preview (প্রিভিউ - অর্বের আনুভূমিক অক্ষে):",
                     fontFamily = MonoFont,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -1163,11 +1142,14 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                 val lum = (0.299f * previewAccent.red + 0.587f * previewAccent.green + 0.114f * previewAccent.blue)
 
                 val (previewBg, previewBorder, previewText) = when (settings.undoBadgeStyle) {
-                    UndoBadgeStyle.FILLED_ACCENT -> Triple(previewAccent, previewAccent.copy(alpha = 0.9f), if (lum > 0.45f) Color(0xFF121212) else Color.White)
-                    UndoBadgeStyle.CRIMSON_DANGER -> Triple(Color(0xFFD32F2F), Color(0xFFFF5252), Color.White)
-                    UndoBadgeStyle.AMBER_GLOW -> Triple(Color(0xFFFFB300), Color(0xFFFFD54F), Color(0xFF121212))
-                    UndoBadgeStyle.MONOCHROME_INVERSE -> Triple(Color.White, Color(0xFFE0E0E0), Color(0xFF121212))
-                    UndoBadgeStyle.OUTLINED_NEON -> Triple(previewAccent.copy(alpha = 0.22f), previewAccent, if (lum > 0.25f) previewAccent else Color.White)
+                    UndoBadgeStyle.FILLED_ACCENT -> Triple(previewAccent.copy(alpha = settings.undoButtonOpacity), previewAccent.copy(alpha = 0.9f * settings.undoButtonOpacity), if (lum > 0.45f) Color(0xFF121212) else Color.White)
+                    UndoBadgeStyle.CRIMSON_DANGER -> Triple(Color(0xFFD32F2F).copy(alpha = settings.undoButtonOpacity), Color(0xFFFF5252).copy(alpha = settings.undoButtonOpacity), Color.White)
+                    UndoBadgeStyle.AMBER_GLOW -> Triple(Color(0xFFFFB300).copy(alpha = settings.undoButtonOpacity), Color(0xFFFFD54F).copy(alpha = settings.undoButtonOpacity), Color(0xFF121212))
+                    UndoBadgeStyle.MONOCHROME_INVERSE -> Triple(Color.White.copy(alpha = settings.undoButtonOpacity), Color(0xFFE0E0E0).copy(alpha = settings.undoButtonOpacity), Color(0xFF121212))
+                    UndoBadgeStyle.OUTLINED_NEON -> Triple(previewAccent.copy(alpha = 0.22f * settings.undoButtonOpacity), previewAccent.copy(alpha = settings.undoButtonOpacity), if (lum > 0.25f) previewAccent else Color.White)
+                    UndoBadgeStyle.GLASSMORPHISM -> Triple(Color(0x38FFFFFF).copy(alpha = 0.28f * settings.undoButtonOpacity), Color(0x66FFFFFF).copy(alpha = 0.55f * settings.undoButtonOpacity), Color.White)
+                    UndoBadgeStyle.SOLID_AMOLED_BLACK -> Triple(Color(0xFF000000).copy(alpha = settings.undoButtonOpacity), Color(0xFF2A2A2A).copy(alpha = settings.undoButtonOpacity), Color(0xFFE0E0E0))
+                    UndoBadgeStyle.TRANSPARENT_BORDER -> Triple(Color.Transparent, previewAccent.copy(alpha = settings.undoButtonOpacity), previewAccent)
                 }
 
                 val previewLabel = when (settings.undoBadgeLabelMode) {
@@ -1182,41 +1164,27 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                     UndoBadgeSize.PROMINENT -> Triple(30.dp, 14.dp, 13.5.sp)
                 }
 
+                // Accurate standalone visual representation of Undo Button alongside the Orb on the exact same horizontal axis
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xF21C1A18), RoundedCornerShape(18.dp))
-                        .border(1.5.dp, colors.accent.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .background(Color(0xFF141312), RoundedCornerShape(8.dp))
+                        .border(1.dp, colors.hairline, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .background(colors.accent, RoundedCornerShape(5.dp))
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "আমি কথা বলেছি...",
-                                fontFamily = DisplayFont,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                        }
-
-                        // The Undo Badge Button Preview
+                        // The Floating Undo Badge Button
                         Box(
                             modifier = Modifier
                                 .height(badgeHeightDp)
                                 .background(previewBg, RoundedCornerShape(badgeHeightDp / 2))
                                 .border(1.5.dp, previewBorder, RoundedCornerShape(badgeHeightDp / 2))
                                 .clickable {
-                                    Toast.makeText(context, "Undo action preview tapped!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Undo button preview tapped!", Toast.LENGTH_SHORT).show()
                                 }
                                 .padding(horizontal = badgePadHDp),
                             contentAlignment = Alignment.Center
@@ -1227,6 +1195,26 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                                 fontWeight = FontWeight.Bold,
                                 fontSize = badgeFontSp,
                                 color = previewText
+                            )
+                        }
+
+                        // Configured horizontal gap between Undo Button and Orb
+                        Spacer(modifier = Modifier.width(settings.undoButtonHorizontalGapDp.coerceIn(4, 32).dp))
+
+                        // Visual Orb marker indicating alignment on the exact same horizontal line
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(colors.accent.copy(alpha = 0.20f), RoundedCornerShape(20.dp))
+                                .border(1.5.dp, colors.accent, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "ORB",
+                                fontFamily = MonoFont,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                color = colors.accent
                             )
                         }
                     }
@@ -1244,10 +1232,13 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                 )
                 val styles = listOf(
                     UndoBadgeStyle.FILLED_ACCENT to "Filled Accent • উজ্জ্বল অ্যাকসেন্ট",
+                    UndoBadgeStyle.GLASSMORPHISM to "Glassmorphism • ফ্রস্টেড গ্লাস",
+                    UndoBadgeStyle.SOLID_AMOLED_BLACK to "Full AMOLED Black • সম্পূর্ণ কালো",
+                    UndoBadgeStyle.TRANSPARENT_BORDER to "Transparent Border • বর্ডার মার্জিন",
+                    UndoBadgeStyle.OUTLINED_NEON to "Outlined Neon • বর্ডার নিয়ন",
                     UndoBadgeStyle.CRIMSON_DANGER to "Crimson Alert • লাল সংকেত",
                     UndoBadgeStyle.AMBER_GLOW to "Amber Glow • সোনালী সতর্কতা",
-                    UndoBadgeStyle.MONOCHROME_INVERSE to "Inverse White • সাদা বৈসাদৃশ্য",
-                    UndoBadgeStyle.OUTLINED_NEON to "Outlined Neon • বর্ডার নিয়ন"
+                    UndoBadgeStyle.MONOCHROME_INVERSE to "Inverse White • সাদা বৈসাদৃশ্য"
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     styles.forEach { (style, label) ->
@@ -1348,7 +1339,39 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
                     }
                 )
 
-                // 6. Custom Badge Tint Color Palette
+                // 6. Undo Button Opacity Slider
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Button Opacity (বাটনের স্বচ্ছতা): ${(settings.undoButtonOpacity * 100).toInt()}%",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkRulerSlider(
+                    value = settings.undoButtonOpacity,
+                    onValueChange = { repo.updateSettings { s -> s.copy(undoButtonOpacity = it) } },
+                    valueRange = 0.20f..1.00f,
+                    unitLabel = "%"
+                )
+
+                // 7. Horizontal Gap from Orb Slider
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Horizontal Distance from Orb (অর্ব হতে আনুভূমিক দূরত্ব): ${settings.undoButtonHorizontalGapDp} dp",
+                    fontFamily = MonoFont,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+                InkRulerSlider(
+                    value = settings.undoButtonHorizontalGapDp.toFloat(),
+                    onValueChange = { repo.updateSettings { s -> s.copy(undoButtonHorizontalGapDp = it.toInt()) } },
+                    valueRange = 2f..48f,
+                    unitLabel = "dp"
+                )
+
+                // 8. Custom Badge Tint Color Palette
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Custom Badge Color Tint • নির্দিষ্ট রঙ নির্বাচন:",
@@ -1420,89 +1443,6 @@ private fun Station04Orb(settings: KothaSettings, repo: SettingsRepository) {
             }
         }
 
-        // Caption Bubble Position and Style Customization in Section 04
-        SettingCard(
-            title = "Caption Bubble Position & Style • প্রিভিউ বাবলের অবস্থান ও শৈলী",
-            description = "কথা বলার সময় স্ক্রিনে ভেসে ওঠা টেক্সট বাবলের অবস্থান, আকৃতি ও রঙ পছন্দমতো নির্ধারণ করুন।"
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Bubble Position (বাবলের অবস্থান):",
-                    fontFamily = MonoFont,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary
-                )
-                InkSegmentedControl(
-                    items = listOf(
-                        CaptionBubblePosition.ABOVE_ORB,
-                        CaptionBubblePosition.BELOW_ORB,
-                        CaptionBubblePosition.TOP_BANNER
-                    ),
-                    selectedItem = settings.captionBubblePosition,
-                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubblePosition = it) } },
-                    labelProvider = {
-                        when (it) {
-                            CaptionBubblePosition.ABOVE_ORB -> "Above Orb • উপরে"
-                            CaptionBubblePosition.BELOW_ORB -> "Below Orb • নিচে"
-                            CaptionBubblePosition.TOP_BANNER -> "Top Banner • শীর্ষে"
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Bubble Style (বাবলের শৈলী):",
-                    fontFamily = MonoFont,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary
-                )
-                InkSegmentedControl(
-                    items = listOf(
-                        CaptionBubbleStyle.TRANSLUCENT_DARK,
-                        CaptionBubbleStyle.SOLID_AMOLED,
-                        CaptionBubbleStyle.ACCENT_THEMED
-                    ),
-                    selectedItem = settings.captionBubbleStyle,
-                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubbleStyle = it) } },
-                    labelProvider = {
-                        when (it) {
-                            CaptionBubbleStyle.TRANSLUCENT_DARK -> "Dark Glass"
-                            CaptionBubbleStyle.SOLID_AMOLED -> "AMOLED Black"
-                            CaptionBubbleStyle.ACCENT_THEMED -> "Accent Tint"
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Bubble Text Size (বাবলের অক্ষরের আকার):",
-                    fontFamily = MonoFont,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary
-                )
-                InkSegmentedControl(
-                    items = listOf(
-                        CaptionBubbleSize.COMPACT,
-                        CaptionBubbleSize.MEDIUM,
-                        CaptionBubbleSize.LARGE,
-                        CaptionBubbleSize.EXTRA_LARGE
-                    ),
-                    selectedItem = settings.captionBubbleSize,
-                    onItemSelected = { repo.updateSettings { s -> s.copy(captionBubbleSize = it) } },
-                    labelProvider = {
-                        when (it) {
-                            CaptionBubbleSize.COMPACT -> "Small (14sp)"
-                            CaptionBubbleSize.MEDIUM -> "Medium (15sp)"
-                            CaptionBubbleSize.LARGE -> "Large (18sp)"
-                            CaptionBubbleSize.EXTRA_LARGE -> "XL (20sp)"
-                        }
-                    }
-                )
-            }
-        }
 
         SettingToggleRow(
             title = "Show Orb Only When Keyboard Appears",

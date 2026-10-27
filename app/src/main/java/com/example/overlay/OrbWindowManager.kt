@@ -308,15 +308,30 @@ class OrbWindowManager(
         }
     }
 
+    fun showUndoButton() {
+        val undoView = undoChipView ?: return
+        val settings = settingsRepository.cachedSettings
+        if (!settings.tapCaptionToUndo) return
+
+        undoView.showUndo(settings)
+        updateUndoChipPosition()
+    }
+
+    fun hideUndoButton() {
+        undoChipView?.hideUndo()
+        updateUndoChipPosition()
+    }
+
     private fun updateUndoChipPosition() {
         val undoView = undoChipView ?: return
         val undoParams = undoChipLayoutParams ?: return
         val orbParams = layoutParams ?: return
         if (!isUndoChipAttached) return
 
+        val settings = settingsRepository.cachedSettings
         val density = context.resources.displayMetrics.density
         val margin = (8 * density).toInt()
-        val gap = (10 * density).toInt()
+        val gap = (settings.undoButtonHorizontalGapDp * density).toInt()
 
         undoView.measure(
             View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
@@ -327,20 +342,28 @@ class OrbWindowManager(
         val orbW = orbParams.width
         val orbH = orbParams.height
 
+        val visualOrbPx = (settings.orbSizeDp * density).toInt()
+        val visualOrbLeft = orbParams.x + (orbW - visualOrbPx) / 2
+        val visualOrbRight = orbParams.x + (orbW + visualOrbPx) / 2
+        val orbCenterY = orbParams.y + (orbH / 2)
+
         val orbCenterX = orbParams.x + (orbW / 2)
         if (orbCenterX >= screenWidth / 2) {
-            // Orb is on right side -> Undo button on left side of orb (and below strip)
-            val idealX = orbParams.x - chipW - gap
+            // Orb is on right side -> Undo button on left side of orb
+            val idealX = visualOrbLeft - chipW - gap
             undoParams.x = idealX.coerceIn(margin, (screenWidth - chipW - margin).coerceAtLeast(margin))
         } else {
-            // Orb is on left side -> Undo button on right side of orb (and below strip)
-            val idealX = orbParams.x + orbW + gap
+            // Orb is on left side -> Undo button on right side of orb
+            val idealX = visualOrbRight + gap
             undoParams.x = idealX.coerceIn(margin, (screenWidth - chipW - margin).coerceAtLeast(margin))
         }
 
-        // On the same horizontal plane of the orb (centered vertically with the orb)
-        val idealY = orbParams.y + ((orbH - chipH) / 2)
+        // On the same horizontal "X" axis with the Orb (centered vertically with the orb)
+        val idealY = orbCenterY - (chipH / 2)
         undoParams.y = idealY.coerceIn(margin, (screenHeight - chipH - margin).coerceAtLeast(margin))
+
+        undoParams.width = chipW
+        undoParams.height = chipH
 
         val isTouchable = undoView.visibility == View.VISIBLE && isOrbVisuallyVisible
         if (isTouchable) {
@@ -468,6 +491,9 @@ class OrbWindowManager(
             is DictationState.Restarting -> true
             else -> false
         }
+        if (!isDictationRunning) {
+            hideUndoButton()
+        }
         syncLanguageIndicatorVisibility()
         updateCaptionPosition()
     }
@@ -498,24 +524,15 @@ class OrbWindowManager(
 
         if (!settings.showLiveCaptionBubble) {
             captionBubbleView?.clearAll()
-            undoChipView?.hideUndo()
             return
         }
 
         if (isStreaming) {
             captionBubbleView?.setPartialText(caption)
-            undoChipView?.hideUndo()
         } else {
             captionBubbleView?.setFinalUtterance(caption)
-            if (caption.isNotBlank() && settings.tapCaptionToUndo) {
-                undoChipView?.showUndo(settings)
-                updateUndoChipPosition()
-            } else {
-                undoChipView?.hideUndo()
-            }
         }
         updateCaptionPosition()
-        updateUndoChipPosition()
     }
 
     fun updateVisibility(isKeyboardVisible: Boolean, isEditableFocused: Boolean, settings: KothaSettings) {
