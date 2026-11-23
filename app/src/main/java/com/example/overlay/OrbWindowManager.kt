@@ -445,6 +445,12 @@ class OrbWindowManager(
     }
 
     fun updateSettings(settings: KothaSettings) {
+        if (!isViewAttached) {
+            if (canDrawOverlays()) {
+                showOrb(settings)
+            }
+            return
+        }
         val view = floatingView ?: return
         view.settings = settings
         captionBubbleView?.settings = settings
@@ -535,14 +541,25 @@ class OrbWindowManager(
         updateCaptionPosition()
     }
 
-    fun updateVisibility(isKeyboardVisible: Boolean, isEditableFocused: Boolean, settings: KothaSettings) {
+    fun updateVisibility(
+        isKeyboardVisible: Boolean,
+        isEditableFocused: Boolean,
+        settings: KothaSettings,
+        isBridgeConnected: Boolean = true
+    ) {
+        if (!isViewAttached) {
+            if (canDrawOverlays()) {
+                showOrb(settings)
+            }
+        }
         val view = floatingView ?: return
         if (!isViewAttached) return
 
-        val shouldBeVisible = when (settings.visibilityRule) {
-            VisibilityRule.KEYBOARD_VISIBLE -> isKeyboardVisible
-            VisibilityRule.EDITABLE_FOCUSED -> isEditableFocused
-            VisibilityRule.ALWAYS -> true
+        val shouldBeVisible = when {
+            !isBridgeConnected -> true // Always show disconnected/tap-to-repair orb until Accessibility Bridge connects
+            settings.visibilityRule == VisibilityRule.KEYBOARD_VISIBLE -> isKeyboardVisible
+            settings.visibilityRule == VisibilityRule.EDITABLE_FOCUSED -> isEditableFocused
+            else -> true
         }
 
         isOrbVisuallyVisible = shouldBeVisible
@@ -552,6 +569,9 @@ class OrbWindowManager(
         // which throws fatal crash when toggled repeatedly. Use View.INVISIBLE and safe try/catch.
         try {
             view.visibility = if (shouldBeVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            if (shouldBeVisible) {
+                view.postInvalidate()
+            }
         } catch (ignored: Exception) {}
         syncLanguageIndicatorVisibility()
     }

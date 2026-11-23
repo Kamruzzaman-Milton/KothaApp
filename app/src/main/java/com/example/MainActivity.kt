@@ -27,6 +27,8 @@ import com.example.ui.theme.KothaTheme
 
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
+import com.example.bridge.TextBridgeService
+import com.example.engine.DictationService
 import com.example.util.ShizukuManager
 import kotlinx.coroutines.launch
 
@@ -38,6 +40,60 @@ sealed class Screen {
 }
 
 class MainActivity : ComponentActivity() {
+
+    private var isApplyingAutoSetup = false
+
+    private fun runAutoSetupIfNeeded(
+        app: KothaApplication,
+        settingsRepo: com.example.settings.SettingsRepository,
+        showToast: Boolean
+    ) {
+        if (isApplyingAutoSetup) return
+        val currentSettings = settingsRepo.cachedSettings
+        val needsSetup = !currentSettings.shizukuAutoSetupEnabled ||
+                !ShizukuManager.areAllCorePermissionsGranted(this)
+        if (!needsSetup) return
+
+        isApplyingAutoSetup = true
+        lifecycleScope.launch {
+            try {
+                val result = ShizukuManager.applyZeroClickSetup(this@MainActivity)
+                app.accessibilityKeeper.checkPermission()
+                TextBridgeService.instance?.checkWindowsAndKeyboard()
+                TextBridgeService.instance?.refreshFocusedNode()
+                DictationService.instance?.refreshOrb()
+
+                if (result.isSuccess) {
+                    settingsRepo.updateSettings { s ->
+                        s.copy(
+                            shizukuAutoSetupEnabled = true,
+                            shizukuSelfHealingEnabled = true,
+                            shizukuHandsFreeSendEnabled = true,
+                            shizukuCursorNavEnabled = true,
+                            shizukuClipboardBypassEnabled = true,
+                            shizukuDozeWhitelistEnabled = true,
+                            shizukuSttRecoveryEnabled = true
+                        )
+                    }
+                    if (showToast) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "⚡ Shizuku Connected & Permitted! All permissions & background features activated.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else if (showToast) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "⚡ Shizuku setup partial: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } finally {
+                isApplyingAutoSetup = false
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,28 +109,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             ShizukuManager.hasPermission.collect { granted ->
                 if (granted) {
-                    val currentSettings = settingsRepo.cachedSettings
-                    if (!currentSettings.shizukuAutoSetupEnabled) {
-                        val result = ShizukuManager.applyZeroClickSetup(this@MainActivity)
-                        settingsRepo.updateSettings { s ->
-                            s.copy(
-                                shizukuAutoSetupEnabled = true,
-                                shizukuSelfHealingEnabled = true,
-                                shizukuHandsFreeSendEnabled = true,
-                                shizukuCursorNavEnabled = true,
-                                shizukuClipboardBypassEnabled = true,
-                                shizukuDozeWhitelistEnabled = true,
-                                shizukuSttRecoveryEnabled = true
-                            )
-                        }
-                        if (result.isSuccess) {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "⚡ Shizuku Connected & Permitted! All background features auto-activated.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
+                    runAutoSetupIfNeeded(app, settingsRepo, showToast = true)
                 }
             }
         }
@@ -82,27 +117,7 @@ class MainActivity : ComponentActivity() {
         // Register Shizuku permission request result listener
         ShizukuManager.registerPermissionListener { granted ->
             if (granted) {
-                lifecycleScope.launch {
-                    val result = ShizukuManager.applyZeroClickSetup(this@MainActivity)
-                    settingsRepo.updateSettings { s ->
-                        s.copy(
-                            shizukuAutoSetupEnabled = true,
-                            shizukuSelfHealingEnabled = true,
-                            shizukuHandsFreeSendEnabled = true,
-                            shizukuCursorNavEnabled = true,
-                            shizukuClipboardBypassEnabled = true,
-                            shizukuDozeWhitelistEnabled = true,
-                            shizukuSttRecoveryEnabled = true
-                        )
-                    }
-                    if (result.isSuccess) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "⚡ Shizuku Permission Granted! All background features auto-activated.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
+                runAutoSetupIfNeeded(app, settingsRepo, showToast = true)
             }
         }
 
@@ -188,13 +203,13 @@ class MainActivity : ComponentActivity() {
                                 onDismissRequest = { showShizukuPrompt = false },
                                 title = {
                                     androidx.compose.material3.Text(
-                                        text = "⚡ Shizoku Detected",
+                                        text = "⚡ Shizuku Detected",
                                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                     )
                                 },
                                 text = {
                                     androidx.compose.material3.Text(
-                                        text = "Shizuku is running on your phone.\n\nGranting permission allows Kotha to automatically enable Zero-Click setup, background self-healing accessibility, hands-free send, and immune background dictation without battery drops."
+                                        text = "Shizuku is running on your phone.\n\nGranting permission allows Kotha to automatically enable Zero-Click setup (microphone, overlay, notifications, accessibility bridge), background self-healing, hands-free send, and battery exemptions."
                                     )
                                 },
                                 confirmButton = {
@@ -226,7 +241,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         ShizukuManager.checkStatus()
         (application as KothaApplication).accessibilityKeeper.checkPermission()
-        com.example.bridge.TextBridgeService.instance?.refreshFocusedNode()
+        TextBridgeService.instance?.checkWindowsAndKeyboard()
+        TextBridgeService.instance?.refreshFocusedNode()
+        DictationService.instance?.refreshOrb()
     }
 
     override fun onDestroy() {

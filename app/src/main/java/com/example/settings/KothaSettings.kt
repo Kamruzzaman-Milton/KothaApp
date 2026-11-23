@@ -223,7 +223,7 @@ data class KothaSettings(
     val appTheme: AppTheme = AppTheme.DARK,
     val accentInk: AccentInk = AccentInk.VERMILION,
 
-    // 10 Shizoku Privileged Features
+    // 10 Shizuku Privileged Features
     val shizukuAutoSetupEnabled: Boolean = false,
     val shizukuSelfHealingEnabled: Boolean = true,
     val shizukuHandsFreeSendEnabled: Boolean = true,

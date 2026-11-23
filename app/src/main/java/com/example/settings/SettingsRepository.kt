@@ -251,6 +251,14 @@ class SettingsRepository(context: Context) {
             AccentInk.valueOf(name)
         } catch (e: Exception) { base.accentInk }
 
+        val shizukuAutoSetupEnabled = try { prefs.getBoolean(KEY_SHIZUKU_AUTO_SETUP, base.shizukuAutoSetupEnabled) } catch (e: Exception) { base.shizukuAutoSetupEnabled }
+        val shizukuSelfHealingEnabled = try { prefs.getBoolean(KEY_SHIZUKU_SELF_HEALING, base.shizukuSelfHealingEnabled) } catch (e: Exception) { base.shizukuSelfHealingEnabled }
+        val shizukuHandsFreeSendEnabled = try { prefs.getBoolean(KEY_SHIZUKU_HANDS_FREE_SEND, base.shizukuHandsFreeSendEnabled) } catch (e: Exception) { base.shizukuHandsFreeSendEnabled }
+        val shizukuCursorNavEnabled = try { prefs.getBoolean(KEY_SHIZUKU_CURSOR_NAV, base.shizukuCursorNavEnabled) } catch (e: Exception) { base.shizukuCursorNavEnabled }
+        val shizukuClipboardBypassEnabled = try { prefs.getBoolean(KEY_SHIZUKU_CLIPBOARD_BYPASS, base.shizukuClipboardBypassEnabled) } catch (e: Exception) { base.shizukuClipboardBypassEnabled }
+        val shizukuDozeWhitelistEnabled = try { prefs.getBoolean(KEY_SHIZUKU_DOZE_WHITELIST, base.shizukuDozeWhitelistEnabled) } catch (e: Exception) { base.shizukuDozeWhitelistEnabled }
+        val shizukuSttRecoveryEnabled = try { prefs.getBoolean(KEY_SHIZUKU_STT_RECOVERY, base.shizukuSttRecoveryEnabled) } catch (e: Exception) { base.shizukuSttRecoveryEnabled }
+
         return KothaSettings(
             primaryLanguage = primaryLang,
             secondaryLanguage = secondaryLang,
@@ -343,7 +351,14 @@ class SettingsRepository(context: Context) {
             appTheme = appTheme,
             accentInk = accentInk,
             orbPositionX = try { prefs.getFloat(KEY_ORB_X, 0.90f) } catch (e: Exception) { 0.90f },
-            orbPositionY = try { prefs.getFloat(KEY_ORB_Y, 0.50f) } catch (e: Exception) { 0.50f }
+            orbPositionY = try { prefs.getFloat(KEY_ORB_Y, 0.50f) } catch (e: Exception) { 0.50f },
+            shizukuAutoSetupEnabled = shizukuAutoSetupEnabled,
+            shizukuSelfHealingEnabled = shizukuSelfHealingEnabled,
+            shizukuHandsFreeSendEnabled = shizukuHandsFreeSendEnabled,
+            shizukuCursorNavEnabled = shizukuCursorNavEnabled,
+            shizukuClipboardBypassEnabled = shizukuClipboardBypassEnabled,
+            shizukuDozeWhitelistEnabled = shizukuDozeWhitelistEnabled,
+            shizukuSttRecoveryEnabled = shizukuSttRecoveryEnabled
         )
     }
 
@@ -457,6 +472,14 @@ class SettingsRepository(context: Context) {
             editor.putInt(KEY_MAX_HISTORY, updated.maxHistoryItems)
             editor.putString(KEY_APP_THEME, updated.appTheme.name)
             editor.putString(KEY_ACCENT_INK, updated.accentInk.name)
+
+            editor.putBoolean(KEY_SHIZUKU_AUTO_SETUP, updated.shizukuAutoSetupEnabled)
+            editor.putBoolean(KEY_SHIZUKU_SELF_HEALING, updated.shizukuSelfHealingEnabled)
+            editor.putBoolean(KEY_SHIZUKU_HANDS_FREE_SEND, updated.shizukuHandsFreeSendEnabled)
+            editor.putBoolean(KEY_SHIZUKU_CURSOR_NAV, updated.shizukuCursorNavEnabled)
+            editor.putBoolean(KEY_SHIZUKU_CLIPBOARD_BYPASS, updated.shizukuClipboardBypassEnabled)
+            editor.putBoolean(KEY_SHIZUKU_DOZE_WHITELIST, updated.shizukuDozeWhitelistEnabled)
+            editor.putBoolean(KEY_SHIZUKU_STT_RECOVERY, updated.shizukuSttRecoveryEnabled)
 
             editor.apply()
         } catch (e: Exception) {
@@ -621,5 +644,13 @@ class SettingsRepository(context: Context) {
         private const val KEY_ORB_Y = "orb_normalized_y"
         private const val KEY_FIXED_ANCHOR = "fixed_screen_anchor"
         private const val KEY_SETTINGS_JSON_BACKUP = "settings_json_backup"
+
+        private const val KEY_SHIZUKU_AUTO_SETUP = "shizuku_auto_setup_enabled"
+        private const val KEY_SHIZUKU_SELF_HEALING = "shizuku_self_healing_enabled"
+        private const val KEY_SHIZUKU_HANDS_FREE_SEND = "shizuku_hands_free_send_enabled"
+        private const val KEY_SHIZUKU_CURSOR_NAV = "shizuku_cursor_nav_enabled"
+        private const val KEY_SHIZUKU_CLIPBOARD_BYPASS = "shizuku_clipboard_bypass_enabled"
+        private const val KEY_SHIZUKU_DOZE_WHITELIST = "shizuku_doze_whitelist_enabled"
+        private const val KEY_SHIZUKU_STT_RECOVERY = "shizuku_stt_recovery_enabled"
     }
 }

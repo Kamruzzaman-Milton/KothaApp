@@ -1,9 +1,14 @@
 package com.example.util
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
+import androidx.core.content.ContextCompat
+import com.example.bridge.TextBridgeStateHolder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -103,6 +108,28 @@ object ShizukuManager {
         }
     }
 
+    fun areAllCorePermissionsGranted(context: Context): Boolean {
+        val hasMic = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        val hasNotif = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        val hasBridge = TextBridgeStateHolder.isConnected.value
+        return hasMic && hasOverlay && hasNotif && hasBridge
+    }
+
     suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             if (!_hasPermission.value && !checkPermissionDirect()) {
@@ -124,9 +151,11 @@ object ShizukuManager {
             if (exitCode == 0) {
                 Result.success(output.trim())
             } else {
-                Result.failure(RuntimeException("Command failed (exit $exitCode): $error"))
+                DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Shizuku command failed (exit $exitCode): $error")
+                Result.failure(RuntimeException("Command failed (exit $exitCode): ${error.ifBlank { output }}"))
             }
         } catch (e: Throwable) {
+            DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Shizuku executeCommand exception: ${e.message}")
             Result.failure(e)
         }
     }
@@ -154,11 +183,39 @@ object ShizukuManager {
     /**
      * Safely appends Kotha's Accessibility Service to the colon-separated list
      * of enabled services without wiping out or disabling other apps' accessibility services.
+     * When [forceRebind] is true, removes only Kotha first and re-appends it so Android
+     * immediately rebinds a stale/blocked AccessibilityService after permissions are granted.
      */
-    fun getSafeAccessibilityEnableCommand(context: Context): String {
+    fun getSafeAccessibilityEnableCommand(context: Context, forceRebind: Boolean = false): String {
         val target = getTargetAccessibilityComponent(context)
+        if (forceRebind) {
+            return """
+curr=${'$'}(settings get secure enabled_accessibility_services | tr -d '\r\n')
+cleaned=""
+IFS=':'
+for item in ${'$'}curr; do
+  if [ -n "${'$'}item" ] && [ "${'$'}item" != "null" ] && [ "${'$'}item" != "$target" ]; then
+    if [ -z "${'$'}cleaned" ]; then cleaned="${'$'}item"; else cleaned="${'$'}cleaned:${'$'}item"; fi
+  fi
+done
+unset IFS
+if [ -z "${'$'}cleaned" ]; then
+  settings put secure enabled_accessibility_services ""
+else
+  settings put secure enabled_accessibility_services "${'$'}cleaned"
+fi
+sleep 0.25
+if [ -z "${'$'}cleaned" ]; then
+  settings put secure enabled_accessibility_services "$target"
+else
+  settings put secure enabled_accessibility_services "${'$'}cleaned:$target"
+fi
+settings put secure accessibility_enabled 1
+            """.trimIndent()
+        }
+
         return """
-curr=${'$'}(settings get secure enabled_accessibility_services)
+curr=${'$'}(settings get secure enabled_accessibility_services | tr -d '\r\n')
 case ":${'$'}curr:" in
   *":$target:"*) ;;
   *) if [ -z "${'$'}curr" ] || [ "${'$'}curr" = "null" ]; then
@@ -190,25 +247,33 @@ settings put secure accessibility_enabled 1
         }
     }
 
-    // 01. Zero-Click Setup
+    // 01. Zero-Click Setup (Complete permissions for Android 13-16 & MIUI/HyperOS)
     fun getZeroClickSetupScript(context: Context): String {
         val pkg = context.packageName
         val enableAcc = getSafeAccessibilityEnableCommand(context)
         return """
 pm grant $pkg android.permission.RECORD_AUDIO
-appops set $pkg SYSTEM_ALERT_WINDOW allow
-pm grant $pkg android.permission.WRITE_SECURE_SETTINGS
+pm grant $pkg android.permission.POST_NOTIFICATIONS 2>/dev/null || true
+cmd appops set $pkg ACCESS_RESTRICTED_SETTINGS allow 2>/dev/null || appops set $pkg ACCESS_RESTRICTED_SETTINGS allow 2>/dev/null || true
+cmd appops set $pkg SYSTEM_ALERT_WINDOW allow 2>/dev/null || appops set $pkg SYSTEM_ALERT_WINDOW allow
+cmd appops set $pkg 10021 allow 2>/dev/null || appops set $pkg 10021 allow 2>/dev/null || true
+pm grant $pkg android.permission.WRITE_SECURE_SETTINGS 2>/dev/null || true
 $enableAcc
-dumpsys deviceidle whitelist +$pkg
-cmd appops set $pkg RUN_IN_BACKGROUND allow
-cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
-cmd appops set $pkg READ_CLIPBOARD allow
+dumpsys deviceidle whitelist +$pkg 2>/dev/null || cmd deviceidle whitelist +$pkg 2>/dev/null || true
+cmd appops set $pkg RUN_IN_BACKGROUND allow 2>/dev/null || appops set $pkg RUN_IN_BACKGROUND allow 2>/dev/null || true
+cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow 2>/dev/null || appops set $pkg RUN_ANY_IN_BACKGROUND allow 2>/dev/null || true
+cmd appops set $pkg AUTO_REVOKE_PERMISSIONS_IF_UNUSED ignore 2>/dev/null || true
+cmd appops set $pkg READ_CLIPBOARD allow 2>/dev/null || appops set $pkg READ_CLIPBOARD allow 2>/dev/null || true
         """.trimIndent()
     }
 
     // 02. Self-Healing Accessibility Service
     fun getSelfHealingScript(context: Context): String {
-        return getSafeAccessibilityEnableCommand(context)
+        val pkg = context.packageName
+        return """
+cmd appops set $pkg ACCESS_RESTRICTED_SETTINGS allow 2>/dev/null || appops set $pkg ACCESS_RESTRICTED_SETTINGS allow 2>/dev/null || true
+${getSafeAccessibilityEnableCommand(context)}
+        """.trimIndent()
     }
 
     // 04. Hands-Free Send Command
@@ -231,16 +296,18 @@ input keyevent 123
     // 07. Background Clipboard Bypass
     fun getClipboardBypassScript(context: Context): String {
         val pkg = context.packageName
-        return "cmd appops set $pkg READ_CLIPBOARD allow"
+        return "cmd appops set $pkg READ_CLIPBOARD allow 2>/dev/null || appops set $pkg READ_CLIPBOARD allow"
     }
 
     // 10. Battery Saver & Doze Whitelist
     fun getDozeWhitelistScript(context: Context): String {
         val pkg = context.packageName
         return """
-dumpsys deviceidle whitelist +$pkg
-cmd appops set $pkg RUN_IN_BACKGROUND allow
-cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow
+dumpsys deviceidle whitelist +$pkg 2>/dev/null || cmd deviceidle whitelist +$pkg 2>/dev/null || true
+cmd appops set $pkg RUN_IN_BACKGROUND allow 2>/dev/null || appops set $pkg RUN_IN_BACKGROUND allow 2>/dev/null || true
+cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow 2>/dev/null || appops set $pkg RUN_ANY_IN_BACKGROUND allow 2>/dev/null || true
+cmd appops set $pkg 10021 allow 2>/dev/null || appops set $pkg 10021 allow 2>/dev/null || true
+cmd appops set $pkg AUTO_REVOKE_PERMISSIONS_IF_UNUSED ignore 2>/dev/null || true
         """.trimIndent()
     }
 
@@ -257,11 +324,58 @@ am force-stop com.google.android.tts
     // =========================================================================
 
     suspend fun applyZeroClickSetup(context: Context): Result<String> {
-        return executeCommand(getZeroClickSetupScript(context))
+        val result = executeCommand(getZeroClickSetupScript(context))
+        if (result.isFailure) {
+            return result
+        }
+
+        // Allow AccessibilityManagerService time to bind TextBridgeService
+        delay(350)
+        if (!TextBridgeStateHolder.isConnected.value) {
+            // Force a non-destructive rebind of only Kotha in case it was previously blocked/unbound
+            executeCommand(getSafeAccessibilityEnableCommand(context, forceRebind = true))
+            for (i in 0 until 4) {
+                delay(200)
+                if (TextBridgeStateHolder.isConnected.value) break
+            }
+        }
+
+        val hasMic = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        val hasBridge = TextBridgeStateHolder.isConnected.value
+
+        DiagnosticsLog.log(
+            DiagnosticsLog.Category.SYSTEM,
+            "Shizuku Zero-Click Setup finished (mic=$hasMic, overlay=$hasOverlay, bridge=$hasBridge)"
+        )
+
+        return if (hasMic && hasOverlay) {
+            Result.success("mic=$hasMic, overlay=$hasOverlay, bridge=$hasBridge")
+        } else {
+            val missing = buildList {
+                if (!hasMic) add("RECORD_AUDIO")
+                if (!hasOverlay) add("SYSTEM_ALERT_WINDOW")
+            }.joinToString(", ")
+            Result.failure(IllegalStateException("Missing permissions after Shizuku setup: $missing"))
+        }
     }
 
     suspend fun healAccessibility(context: Context): Result<String> {
-        return executeCommand(getSelfHealingScript(context))
+        val res = executeCommand(getSelfHealingScript(context))
+        if (res.isSuccess) {
+            delay(300)
+            if (!TextBridgeStateHolder.isConnected.value) {
+                executeCommand(getSafeAccessibilityEnableCommand(context, forceRebind = true))
+            }
+        }
+        return res
     }
 
     suspend fun disableAccessibility(context: Context): Result<String> {

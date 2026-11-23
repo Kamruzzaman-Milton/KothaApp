@@ -1,5 +1,6 @@
 package com.example.engine
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,10 +8,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.KothaApplication
 import com.example.MainActivity
 import com.example.R
@@ -28,6 +31,9 @@ import com.example.util.LanguageTools
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -44,6 +50,7 @@ class DictationService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        _isRunningState.value = true
 
         // Crash Safety: Restore audio stream volumes if a previous crash occurred
         com.example.util.AudioBeepSuppressor.restoreCrashSafetyIfNeeded(this)
@@ -122,7 +129,8 @@ class DictationService : Service() {
                 orbWindowManager.updateSettings(settings)
                 val isKeyboardVisible = TextBridgeStateHolder.isKeyboardVisible.value
                 val isEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
-                orbWindowManager.updateVisibility(isKeyboardVisible, isEditable, settings)
+                val isBridgeConnected = TextBridgeStateHolder.isConnected.value
+                orbWindowManager.updateVisibility(isKeyboardVisible, isEditable, settings, isBridgeConnected)
             }
         }
 
@@ -165,6 +173,14 @@ class DictationService : Service() {
         serviceScope.launch {
             TextBridgeStateHolder.isConnected.collectLatest { connected ->
                 orbWindowManager.updateBridgeConnected(connected)
+                val isKeyboardVisible = TextBridgeStateHolder.isKeyboardVisible.value
+                val isEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
+                orbWindowManager.updateVisibility(
+                    isKeyboardVisible,
+                    isEditable,
+                    settingsRepository.cachedSettings,
+                    connected
+                )
             }
         }
 
@@ -176,7 +192,8 @@ class DictationService : Service() {
                 orbWindowManager.handleKeyboardVisibility(visible, height, settings)
 
                 val isEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
-                orbWindowManager.updateVisibility(visible, isEditable, settings)
+                val isBridgeConnected = TextBridgeStateHolder.isConnected.value
+                orbWindowManager.updateVisibility(visible, isEditable, settings, isBridgeConnected)
 
                 // Voice typing lifecycle: in KEYBOARD_VISIBLE mode, automatically shut down dictation when keyboard closes
                 if (!visible && settings.visibilityRule == VisibilityRule.KEYBOARD_VISIBLE) {
@@ -192,7 +209,13 @@ class DictationService : Service() {
             TextBridgeStateHolder.focusedSnapshot.collectLatest { snapshot ->
                 val isKeyboardVisible = TextBridgeStateHolder.isKeyboardVisible.value
                 val isEditable = snapshot?.isEditable == true
-                orbWindowManager.updateVisibility(isKeyboardVisible, isEditable, settingsRepository.cachedSettings)
+                val isBridgeConnected = TextBridgeStateHolder.isConnected.value
+                orbWindowManager.updateVisibility(
+                    isKeyboardVisible,
+                    isEditable,
+                    settingsRepository.cachedSettings,
+                    isBridgeConnected
+                )
             }
         }
 
@@ -204,12 +227,24 @@ class DictationService : Service() {
         orbWindowManager.showOrb(currentSettings)
         val initialKb = TextBridgeStateHolder.isKeyboardVisible.value
         val initialEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
-        orbWindowManager.updateVisibility(initialKb, initialEditable, currentSettings)
+        val initialBridge = TextBridgeStateHolder.isConnected.value
+        orbWindowManager.updateVisibility(initialKb, initialEditable, currentSettings, initialBridge)
 
         // Start Foreground Notification
         startForegroundNotification()
 
         DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "DictationService created and running")
+    }
+
+    fun refreshOrb() {
+        val settings = settingsRepository.cachedSettings
+        orbWindowManager.showOrb(settings)
+        orbWindowManager.updateSettings(settings)
+        val isKeyboardVisible = TextBridgeStateHolder.isKeyboardVisible.value
+        val isEditable = TextBridgeStateHolder.focusedSnapshot.value?.isEditable == true
+        val isBridgeConnected = TextBridgeStateHolder.isConnected.value
+        orbWindowManager.updateBridgeConnected(isBridgeConnected)
+        orbWindowManager.updateVisibility(isKeyboardVisible, isEditable, settings, isBridgeConnected)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -320,12 +355,22 @@ class DictationService : Service() {
 
         val notification = buildNotification(channelId, speechEngineManager.dictationState.value)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+        val hasMic = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasMic) {
+            try {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } catch (e: SecurityException) {
+                DiagnosticsLog.log(DiagnosticsLog.Category.ERROR, "Microphone FGS blocked: ${e.message}")
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -434,6 +479,7 @@ class DictationService : Service() {
         accessibilityKeeper.stopObserving()
         serviceScope.cancel()
         instance = null
+        _isRunningState.value = false
         DiagnosticsLog.log(DiagnosticsLog.Category.SYSTEM, "DictationService destroyed and cleaned up")
         super.onDestroy()
     }
@@ -450,6 +496,9 @@ class DictationService : Service() {
         const val ACTION_UNDO = "com.example.action.UNDO"
         const val ACTION_HIDE_ORB = "com.example.action.HIDE_ORB"
         const val ACTION_STOP_REPAIR = "com.example.action.STOP_REPAIR"
+
+        private val _isRunningState = MutableStateFlow(false)
+        val isRunningState: StateFlow<Boolean> = _isRunningState.asStateFlow()
 
         var instance: DictationService? = null
             private set

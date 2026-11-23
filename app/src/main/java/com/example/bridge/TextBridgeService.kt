@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -16,6 +18,18 @@ import java.util.Locale
 
 class TextBridgeService : AccessibilityService() {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val delayedWindowCheckRunnable = Runnable {
+        checkWindowsAndKeyboard()
+        refreshFocusedNode()
+    }
+
+    private fun scheduleDelayedWindowChecks() {
+        mainHandler.removeCallbacks(delayedWindowCheckRunnable)
+        mainHandler.postDelayed(delayedWindowCheckRunnable, 160L)
+        mainHandler.postDelayed({ checkWindowsAndKeyboard() }, 400L)
+    }
+
     override fun onServiceConnected() {
         try {
             instance = this
@@ -24,7 +38,9 @@ class TextBridgeService : AccessibilityService() {
                 DiagnosticsLog.Category.ACCESSIBILITY,
                 "TextBridgeService connected"
             )
+            checkWindowsAndKeyboard()
             refreshFocusedNode()
+            scheduleDelayedWindowChecks()
         } catch (e: Exception) {
             DiagnosticsLog.log(
                 DiagnosticsLog.Category.ERROR,
@@ -38,6 +54,11 @@ class TextBridgeService : AccessibilityService() {
         try {
             when (event.eventType) {
                 AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                    checkWindowsAndKeyboard()
+                    refreshFocusedNode()
+                    scheduleDelayedWindowChecks()
+                }
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
                 AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
                     refreshFocusedNode()
@@ -46,6 +67,7 @@ class TextBridgeService : AccessibilityService() {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                     checkWindowsAndKeyboard()
                     refreshFocusedNode()
+                    scheduleDelayedWindowChecks()
                 }
             }
         } catch (e: Exception) {
@@ -69,6 +91,7 @@ class TextBridgeService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         try {
+            mainHandler.removeCallbacksAndMessages(null)
             TextBridgeStateHolder.updateConnected(false)
             instance = null
             DiagnosticsLog.log(
@@ -83,6 +106,7 @@ class TextBridgeService : AccessibilityService() {
 
     override fun onDestroy() {
         try {
+            mainHandler.removeCallbacksAndMessages(null)
             TextBridgeStateHolder.updateConnected(false)
             instance = null
             DiagnosticsLog.log(
@@ -95,7 +119,7 @@ class TextBridgeService : AccessibilityService() {
         super.onDestroy()
     }
 
-    private fun checkWindowsAndKeyboard() {
+    fun checkWindowsAndKeyboard() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val windows = windows ?: return
@@ -104,10 +128,12 @@ class TextBridgeService : AccessibilityService() {
 
                 for (window in windows) {
                     if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
-                        keyboardVisible = true
                         val bounds = Rect()
                         window.getBoundsInScreen(bounds)
-                        keyboardHeight = bounds.height()
+                        if (bounds.height() > 0 || window.isActive) {
+                            keyboardVisible = true
+                            keyboardHeight = bounds.height()
+                        }
                     } else if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && window.isFocused) {
                         val root = window.root
                         if (root != null) {

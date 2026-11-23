@@ -182,7 +182,7 @@ fun StationScreen(
                 "07" -> item { Station07System(settings, settingsRepo) }
                 "08" -> item { Station08Data(settings, settingsRepo) }
                 "09" -> item { Station09VoiceCommands(settings, settingsRepo) }
-                "10" -> item { Station10Shizoku(settings, settingsRepo) }
+                "10" -> item { Station10Shizuku(settings, settingsRepo) }
             }
             item { Spacer(modifier = Modifier.height(48.dp)) }
         }
@@ -1688,6 +1688,18 @@ private fun Station07System(settings: KothaSettings, repo: SettingsRepository) {
                         context.startActivity(intent)
                     }
                 )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    PermissionStatusItem(
+                        name = "Notifications (POST_NOTIFICATIONS)",
+                        granted = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED,
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            context.startActivity(intent)
+                        }
+                    )
+                }
                 PermissionStatusItem(
                     name = "Auto-Repair (WRITE_SECURE_SETTINGS)",
                     granted = isKeeperPermitted,
@@ -2683,7 +2695,7 @@ private fun Station09VoiceCommands(settings: KothaSettings, repo: SettingsReposi
 }
 
 @Composable
-private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) {
+private fun Station10Shizuku(settings: KothaSettings, repo: SettingsRepository) {
     val colors = LocalKothaColors.current
     val context = LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -2705,7 +2717,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Status Card
         SettingCard(
-            title = "⚡ Shizoku & ADB Privileged Automation Hub",
+            title = "⚡ Shizuku & ADB Privileged Automation Hub",
             description = "Shizuku ফ্রেমওয়ার্কের মাধ্যমে Kotha সিস্টেম-লেভেল সুবিধায় রান করে। প্রতিটি অপশনের নিচে ব্যাকগ্রাউন্ডে চলা প্রকৃত শেল কমান্ড ও সেফটি নোট প্রদর্শন করা হলো যাতে আপনি যেকোনো সমস্যা সহজে ট্র্যাক করতে পারেন।"
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2805,19 +2817,26 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 1: Zero-Click Setup
         // =====================================================================
         val zeroClickScript = com.example.util.ShizukuManager.getZeroClickSetupScript(context)
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "01",
             titleEn = "Zero-Click Setup & Permission Grant",
             titleBn = "এক ক্লিকে সম্পূর্ণ সেটআপ ও পারমিশন",
-            description = "ম্যানুয়ালি কোনো সেটিংসে না গিয়ে Shizuku দিয়ে মাইক্রোফোন, ফ্লোটিং উইন্ডো এবং অ্যাক্সেসিবিলিটি সার্ভিস এক সেকেন্ডে স্বয়ংক্রিয়ভাবে অন করে।",
+            description = "ম্যানুয়ালি কোনো সেটিংসে না গিয়ে Shizuku দিয়ে মাইক্রোফোন, নোটিফিকেশন, ফ্লোটিং উইন্ডো, Restricted Settings বাইপাস ও অ্যাক্সেসিবিলিটি সার্ভিস এক সেকেন্ডে স্বয়ংক্রিয়ভাবে অন করে।",
             command = zeroClickScript,
             safetyNote = "নিরাপত্তা ফিক্স: আগের কোডে settings put ব্যবহারের কারণে ফোনের অন্যান্য অ্যাপের অ্যাক্সেসিবিলিটি মুছে যাচ্ছিল। এখন existing services যাচাই করে শুধুমাত্র Kotha-কে অ্যাপেন্ড করা হয়।",
             checked = settings.shizukuAutoSetupEnabled,
             onCheckedChange = { isChecked ->
                 repo.updateSettings { it.copy(shizukuAutoSetupEnabled = isChecked) }
                 if (isChecked) {
+                    if (isRunning && !hasPermission) {
+                        com.example.util.ShizukuManager.requestPermission()
+                        return@ShizukuCommandOptionCard
+                    }
                     coroutineScope.launch {
                         val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
+                        (context.applicationContext as? KothaApplication)?.accessibilityKeeper?.checkPermission()
+                        TextBridgeService.instance?.checkWindowsAndKeyboard()
+                        com.example.engine.DictationService.instance?.refreshOrb()
                         if (result.isSuccess) {
                             Toast.makeText(context, "সব পারমিশন ও অ্যাক্সেসিবিলিটি সার্ভিস স্বয়ংক্রিয়ভাবে অন হয়েছে!", Toast.LENGTH_SHORT).show()
                         } else {
@@ -2828,13 +2847,20 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
             },
             actionButtonText = "⚡ Run Complete Zero-Click Setup Now",
             onActionClick = {
+                if (isRunning && !hasPermission) {
+                    com.example.util.ShizukuManager.requestPermission()
+                    return@ShizukuCommandOptionCard
+                }
                 coroutineScope.launch {
                     val result = com.example.util.ShizukuManager.applyZeroClickSetup(context)
+                    (context.applicationContext as? KothaApplication)?.accessibilityKeeper?.checkPermission()
+                    TextBridgeService.instance?.checkWindowsAndKeyboard()
+                    com.example.engine.DictationService.instance?.refreshOrb()
                     if (result.isSuccess) {
                         repo.updateSettings { it.copy(shizukuAutoSetupEnabled = true) }
                         Toast.makeText(context, "Zero-Click Setup সম্পন্ন হয়েছে!", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Shizuku পারমিশন প্রয়োজন", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "ত্রুটি: ${result.exceptionOrNull()?.message ?: "Shizuku পারমিশন প্রয়োজন"}", Toast.LENGTH_LONG).show()
                     }
                 }
             },
@@ -2845,7 +2871,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 2: Self-Healing Accessibility Service
         // =====================================================================
         val selfHealingScript = com.example.util.ShizukuManager.getSelfHealingScript(context)
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "02",
             titleEn = "Self-Healing Accessibility Service",
             titleBn = "স্বয়ংক্রিয় অ্যাক্সেসিবিলিটি রিস্টোর ও কিপার",
@@ -2882,7 +2908,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 4: Hands-Free Send Command
         // =====================================================================
         val sendScript = com.example.util.ShizukuManager.getHandsFreeSendScript()
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "04",
             titleEn = "Hands-Free \"Send\" Voice Command",
             titleBn = "ভয়েস কমান্ডে সরাসরি মেসেজ প্রেরণ",
@@ -2910,7 +2936,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 5: High-Precision Cursor Navigation & Editing Macros
         // =====================================================================
         val cursorScript = com.example.util.ShizukuManager.getCursorMacroScript()
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "05",
             titleEn = "High-Precision Cursor Navigation & Macros",
             titleBn = "হার্ডওয়্যার কিবোর্ড কার্সার ও ম্যাক্রো",
@@ -2938,7 +2964,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 7: Background Clipboard Bypass
         // =====================================================================
         val clipboardScript = com.example.util.ShizukuManager.getClipboardBypassScript(context)
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "07",
             titleEn = "Background Clipboard Bypass",
             titleBn = "ব্যাকগ্রাউন্ড ক্লিপবোর্ড সীমাবদ্ধতা বাইপাস",
@@ -2973,7 +2999,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 10: Battery Saver & Doze Whitelist
         // =====================================================================
         val dozeScript = com.example.util.ShizukuManager.getDozeWhitelistScript(context)
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "10",
             titleEn = "Battery Saver & Doze Whitelist",
             titleBn = "একটানা ব্যাকগ্রাউন্ড ডিক্টেশন ও ডোপ ছাড়",
@@ -3008,7 +3034,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
         // Feature 13: Speech Recognition Engine Diagnostic & Recovery
         // =====================================================================
         val sttRecoveryScript = com.example.util.ShizukuManager.getSttRecoveryScript()
-        ShizokuCommandOptionCard(
+        ShizukuCommandOptionCard(
             number = "13",
             titleEn = "Speech Recognition Engine Recovery",
             titleBn = "স্পিচ ইঞ্জিন রিস্টার্ট ও ক্যাশ রিকভারি",
@@ -3036,7 +3062,7 @@ private fun Station10Shizoku(settings: KothaSettings, repo: SettingsRepository) 
 }
 
 @Composable
-private fun ShizokuCommandOptionCard(
+private fun ShizukuCommandOptionCard(
     number: String,
     titleEn: String,
     titleBn: String,
